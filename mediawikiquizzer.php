@@ -214,8 +214,8 @@ EOT;
           shuffle($test["questions"]);          
         }
 
-        if ( $test["test"]->limit>0) {
-          array_splice($test["questions"],$test["test"]->limit);          
+        if ( $test["test"]->q_limit>0) {
+          array_splice($test["questions"],$test["test"]->q_limit);          
         }
 
         $wgOut->addHTML($this->get_table_of_contents(count($test["questions"])));
