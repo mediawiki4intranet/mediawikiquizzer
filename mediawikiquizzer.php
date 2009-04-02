@@ -18,9 +18,9 @@ $wgExtensionMessagesFiles['MediawikiQuizzer'] = $dir . 'mediawikiquizzer.i18n.ph
 $wgExtensionCredits['specialpage'][] = array(
         'name' => 'MediawikiQuizzer',
         'author' =>' Stas Fomin ',
-        'version' => '1.2 (2008-05-01) ',
+        'version' => '1.3 (2009-04-01) ',
         'description' => 'Quiz System for MediaWiki',
-        'url' => 'http://lib.custis.ru/index.php/MediawikiQuizzer'
+        'url' =>  'http://lib.custis.ru/index.php/MediawikiQuizzer'
 );
 
 
@@ -71,6 +71,15 @@ function wfMediawikiQuizzer() {
       return wfMsg( "mediawikiquizzer-" . $code );
     }  
 
+    function calculate_props(&$mytest) {
+      $mytest["randscore"]=0.0;
+      $mytest["maxscore"]=0;
+      foreach($mytest["questions"] as $q_num => $q){
+        $mytest["randscore"]+=(0.0+$q['right_answers'])/(0.0+$q['choices_num']);
+        $mytest["maxscore"]++;
+      }
+    }  
+
     function load_test( $id_test = null ) {
       global $wgOut;
       $mytest=array();
@@ -92,10 +101,7 @@ function wfMediawikiQuizzer() {
       }  
 
       $mytest["questions"]=array();
-      $mytest["randscore"]=0.0;
-      $mytest["maxscore"]=0;
       while ( $question = $this->dbr->fetchObject( $res ) ) {
-        $mytest["maxscore"]++;
         $q=array(
           'question' => $question,
           'choices'  => array(),
@@ -128,10 +134,9 @@ function wfMediawikiQuizzer() {
         }
         
         $q['penalty']=1/(1.0*($q['choices_num']-$q['right_answers']));
-        
-        $mytest["randscore"]+=(0.0+$q['right_answers'])/(0.0+$q['choices_num']);
         $mytest["questions"][$question->num]=$q;
       }
+      $this->calculate_props($mytest);
       return $mytest;
     }  
 
@@ -215,8 +220,9 @@ EOT;
         }
 
         if ( $test["test"]->q_limit>0) {
-          array_splice($test["questions"],$test["test"]->q_limit);          
+          array_splice($test["questions"],$test["test"]->q_limit);
         }
+        $this->calculate_props($test);
 
         $wgOut->addHTML($this->get_table_of_contents(count($test["questions"])));
 
@@ -244,12 +250,16 @@ EOT;
         }
 
         $prompt="";
+        $randscore=$test["randscore"];
+        $maxscore=$test["maxscore"];
         $prompt .= $this->msg("prompt") . "<input type='text' name='prompt' value=''>";
         $out=<<<EOT
 {$test->intro}      
 <form action='$action' method='POST'>
 <input type='hidden' name='ticket' value='$ticket' />
 <input type='hidden' name='tsstart' value='$tsnow' />
+<input type='hidden' name='randscore' value='$randscore' />
+<input type='hidden' name='maxscore' value='$maxscore' />
 {$prompt}        
 {$out}
 <input name='action' value='Ok' type='submit'>
@@ -319,6 +329,8 @@ EOT;
       {
         extract( $wgRequest->getValues( 'ticket' ) );
         extract( $wgRequest->getValues( 'tsstart' ) );
+        extract( $wgRequest->getValues( 'randscore' ) );
+        extract( $wgRequest->getValues( 'maxscore' ) );
         $startdate = $wgLang->date($tsstart,true);
         $starttime = $wgLang->time($tsstart,true);
         
@@ -419,8 +431,8 @@ EOT;
           }
         }        
         $out.="<h2>" . $this->msg("summary") . "</h2>";
-        $percent_score=round( ($score/$test["maxscore"])*100, 1 );
-        $percent_answers=round( ($ranswers/$test["maxscore"])*100, 1 );
+        $percent_score=round( ($score/$maxscore)*100, 1 );
+        $percent_answers=round( ($ranswers/$maxscore)*100, 1 );
         $ranswers=round($ranswers,0.1);
         $score=round($score,0.1);
         $summary=<<<EOT
@@ -442,7 +454,7 @@ EOT;
 </td>
 </tr>
 </table>
-<p> {$this->msg("random-score")} {$test['randscore']} </p>
+<p> {$this->msg("random-score")} {$randscore} </p>
 EOT;
         $out.=$summary;
         $prompt = $_POST['prompt'];
@@ -456,7 +468,7 @@ Answers:  {$ranswers}
 Score:    {$score}
 {$this->msg("right-answers")}: {$ranswers} ≈ {$percent_answers}%
 {$this->msg("score")}: {$score} ≈ {$percent_score}%
-{$this->msg("random-score")}: {$test['randscore']} 
+{$this->msg("random-score")}: {$randscore} 
 
 {$mailmessage}
 EOT;
