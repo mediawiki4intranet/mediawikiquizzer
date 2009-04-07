@@ -230,7 +230,7 @@ EOT;
 
             $ticket = rand(1,1000000);
             $variant = rand(1,999);
-            $action = $wgTitle->escapeLocalUrl("id_test=$id_test") . "&mode = check";
+            $action = $wgTitle->escapeLocalUrl("id_test=$id_test") . "&mode=check";
             if (!isset($mode))
             {
                 // Generate questions form.
