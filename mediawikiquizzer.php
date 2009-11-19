@@ -36,8 +36,8 @@ function wfMediawikiQuizzer()
         array(
             specialpagename  => 'MediawikiQuizzer',
             mediawikiquizzer => 'Mediawiki Quizzer'
-)
-);
+        )
+    );
 
     class MediawikiQuizzerPage extends SpecialPage
     {
@@ -206,7 +206,7 @@ EOT;
 
         function execute($par = null)
         {
-            global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer;
+            global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath;
             extract($wgRequest->getValues('id_test'));
 
             $wgOut->setPagetitle('MediawikiQuizzers');
@@ -271,6 +271,16 @@ EOT;
                 $prompt .= $this->msg("prompt") . "<input type='text' name='prompt' value=''>";
                 $out = <<<EOT
 {$test->intro}
+<script language="JavaScript">
+BackColor = "white";
+ForeColor = "navy";
+CountActive = true;
+CountStepper = 1;
+LeadingZero = true;
+DisplayFormat = "Прошло %%H%%:%%M%%:%%S%%.";
+FinishMessage = "It is finally here!";
+</script>
+<script language="JavaScript" src="$wgScriptPath/extensions/mediawikiquizzer/countdown.js"></script>
 <form action='$action' method='POST'>
 <input type='hidden' name='ticket' value='$ticket' />
 <input type='hidden' name='tsstart' value='$tsnow' />
