@@ -358,16 +358,16 @@ EOT;
                 $starttime = $wgLang->time($tsstart,true);
 
                 $ip = wfGetIP();
-                $lc = $this->dbr->query("SELECT * FROM mwquizzer.results_cache WHERE id_test=$id_test AND ip='$ip' and ticket='$ticket'");
-                if ($cache = $this->dbr->fetchObject($lc))
+                $cache = wfGetCache(CACHE_ANYTHING);
+                if ($data = $cache->get('mwquizzer_result_'.$id_test.'_'.$ip.'_'.$ticket))
                 {
                     $action = $wgTitle->escapeLocalUrl("id_test=$id_test");
-                    $out=<<<EOT
+                    $out = <<<EOT
 <p>{$this->msg('variant-already-seen')}</p>
 <p>
 <a href="{$action}">{$this->msg("try")} «{$test["test"]->name}»!</a>
 <hr>
-{$cache->result}
+$data
 EOT;
                     $wgOut->addHTML($out);
                     return;
@@ -584,12 +584,7 @@ EOT;
 EOT;
                     }
                 }
-                $this->dbw->insert('`mwquizzer`.`results_cache`',array(
-                    id_test => $id_test,
-                    ticket  => $ticket,
-                    ip      => $ip,
-                    result  => $out,
-                ));
+                $cache->add('mwquizzer_result_'.$id_test.'_'.$ip.'_'.$ticket, $out, 86400);
                 $to = new MailAddress($this->adminEmail);
                 $sender = new MailAddress($this->adminEmail);
                 $mailResult = UserMailer::send($to , $sender , "[Quiz] «{$test[test]->name}» {$ip} => {$percent_score}%", $mailmessage);
