@@ -359,7 +359,8 @@ EOT;
 
                 $ip = wfGetIP();
                 $cache = wfGetCache(CACHE_ANYTHING);
-                if ($data = $cache->get('mwquizzer_result_'.$id_test.'_'.$ip.'_'.$ticket))
+                $cachekey = mfMemcKey('mwquizzer', $id_test, $ip, $ticket);
+                if ($data = $cache->get($cachekey))
                 {
                     $action = $wgTitle->escapeLocalUrl("id_test=$id_test");
                     $out = <<<EOT
@@ -584,7 +585,7 @@ EOT;
 EOT;
                     }
                 }
-                $cache->add('mwquizzer_result_'.$id_test.'_'.$ip.'_'.$ticket, $out, 86400);
+                $cache->add($cachekey, $out, 86400);
                 $to = new MailAddress($this->adminEmail);
                 $sender = new MailAddress($this->adminEmail);
                 $mailResult = UserMailer::send($to , $sender , "[Quiz] «{$test[test]->name}» {$ip} => {$percent_score}%", $mailmessage);
