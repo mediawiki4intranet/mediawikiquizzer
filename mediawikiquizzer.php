@@ -359,7 +359,7 @@ EOT;
 
                 $ip = wfGetIP();
                 $cache = wfGetCache(CACHE_ANYTHING);
-                $cachekey = mfMemcKey('mwquizzer', $id_test, $ip, $ticket);
+                $cachekey = wfMemcKey('mwquizzer', $id_test, $ip, $ticket);
                 if ($data = $cache->get($cachekey))
                 {
                     $action = $wgTitle->escapeLocalUrl("id_test=$id_test");
