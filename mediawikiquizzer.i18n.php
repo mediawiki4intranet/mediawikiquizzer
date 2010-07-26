@@ -15,6 +15,7 @@
 $messages = array();
 
 $messages['en'] = array(
+    'mediawikiquizzer'                           => 'MediaWiki Quizzer',
     'mediawikiquizzer-no-test-id'                => 'Quiz ID is undefined!',
     'mediawikiquizzer-test-undefined'            => 'Quiz with this ID is undefined!',
     'mediawikiquizzer-no-questions'              => 'Quiz with this ID contains no questions!',
@@ -46,6 +47,7 @@ $messages['en'] = array(
 );
 
 $messages['ru'] = array(
+    'mediawikiquizzer'                           => 'Опросы MediaWiki',
     'mediawikiquizzer-no-test-id'                => 'Не определен идентификатор теста!',
     'mediawikiquizzer-test-undefined'            => 'Тест с этим номером не определен!',
     'mediawikiquizzer-no-questions'              => 'Увы, этот тест не содержит ни одного вопроса…',
