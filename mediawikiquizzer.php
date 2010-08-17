@@ -528,6 +528,7 @@ EOT;
                             fwrite($obj, $text);
                             fclose($obj);
                         }
+                        setlocale(LC_NUMERIC, 'C'); // fucking imagemagick does sprintf() of ImagickDraw definition and expects '.'
                         $image = new Imagick($this->DiplomaTemplateName);
                         $draw = new ImagickDraw();
                         $res = $draw->setFontFamily("Times");
