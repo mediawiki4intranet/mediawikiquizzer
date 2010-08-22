@@ -1,0 +1,13 @@
+.mwq-toc { border-collapse: separate; empty-cells: hide; }
+.mwq-toc td { border: 1px solid gray; padding: 4px 8px; text-align: center; width: 1.5em; }
+.mwq-count { font-weight: bold; }
+.mwq-result th { background-color: #e0e0e0; padding: 4px; }
+.mwq-result td { text-align: center; }
+.mwq-noitem { font-weight: bold; background-color: #f0f0f0; }
+.mwq-questionnaire, .mwq-checklist { border-collapse: collapse !important; empty-cells: show; }
+.mwq-questionnaire { width: 50%;  }
+.mwq-checklist { width: 80%;  }
+.mwq-questionnaire td, .mwq-questionnaire th, .mwq-checklist td, .mwq-checklist th { border: 1px solid gray; text-align: center; }
+.mwq-questionnaire th { width: 30%; }
+.mwq-checklist th { width: 25%; }
+.mwq-questionnaire .mwq-tn, .mwq-checklist .mwq-tn { width: 10%; }

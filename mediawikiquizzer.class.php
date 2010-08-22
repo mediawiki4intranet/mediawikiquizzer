@@ -71,10 +71,10 @@ class MediawikiQuizzerUpdater
     static function parseQuestion($q)
     {
         $question = array('choices' => array());
-        $question['qn_label'] = DOMParseUtils::saveChildNodesXML(DOMParseUtils::trimDOM($q['title']));
+        $question['qn_label'] = DOMParseUtils::saveChildren($q['title'], true);
         $subsect = DOMParseUtils::getSections($q['content'], self::$regexps[2], true, NULL, true);
         $sect0 = array_shift($subsect);
-        $question['qn_text'] = trim(DOMParseUtils::saveChildNodesXML($sect0['content']));
+        $question['qn_text'] = trim(DOMParseUtils::saveChildren($sect0['content']));
         foreach ($subsect as $ss)
         {
             foreach ($ss['match'] as $i => $v)
@@ -94,7 +94,7 @@ class MediawikiQuizzerUpdater
             elseif ($field == 'explanation' || $field == 'label')
             {
                 /* Explanation and label are of HTML type */
-                $question["qn_$field"] = trim(DOMParseUtils::saveChildNodesXML($ss['content']));
+                $question["qn_$field"] = trim(DOMParseUtils::saveChildren($ss['content']));
             }
             else
             {
@@ -127,14 +127,15 @@ class MediawikiQuizzerUpdater
                 {
                     /* Allow optional "Correct choice: " at the beginning of the choice */
                     $checked = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
+                    $c = $correct;
                     if ($checked)
                     {
                         $e = $checked[0];
-                        $correct = 1;
+                        $c = 1;
                     }
                     $question['choices'][] = array(
-                        'ch_text'    => DOMParseUtils::saveChildNodesXML(DOMParseUtils::trimDOM($e)),
-                        'ch_correct' => $correct,
+                        'ch_text'    => trim(DOMParseUtils::saveChildren($e, true)),
+                        'ch_correct' => $c,
                     );
                 }
             }
@@ -155,30 +156,15 @@ class MediawikiQuizzerUpdater
         }
         if (!$field)
             die(__METHOD__.": Mystical bug detected, this should never happen");
-        $value = trim(DOMParseUtils::saveChildNodesXML($q['content']));
-        $t = self::$test_field_types[$field];
-        if ($t > 0) /* not an HTML code */
-        {
-            $value = trim(strip_tags($value));
-            if ($t == 2) /* mode */
-                $value = strpos(strtolower($value), 'tutor') !== false ? 1 : 0;
-            elseif ($t == 3) /* boolean */
-            {
-                $re = str_replace('/', '\\/', wfMsgNoTrans('mwquizzer-parse-true'));
-                $value = preg_match("/$re/uis", $value) ? 1 : 0;
-            }
-            elseif ($t == 4) /* integer */
-                $value = intval($value);
-            /* else ($t == 1) // just a string */
-        }
-        return array("test_$field", $value);
+        $value = DOMParseUtils::saveChildren($q['content'], true);
+        return array("test_$field", self::transformFieldValue($field, $value));
     }
 
     /* Extract MediawikiQuizzer questions, choices and quiz parameters from HTML code given in $html */
     static function parseQuiz($html)
     {
-        $test = array();
         self::getRegexps();
+        $test = array();
         $document = DOMParseUtils::loadDOM($html);
         /* match headings */
         $sections = DOMParseUtils::getSections($document->documentElement, self::$regexps[0], true, NULL, true);
@@ -206,6 +192,243 @@ class MediawikiQuizzerUpdater
         return $test;
     }
 
+    /* Transform quiz field value according to its type */
+    static function transformFieldValue($field, $value)
+    {
+        $t = self::$test_field_types[$field];
+        if ($t > 0) /* not an HTML code */
+        {
+            $value = trim(strip_tags($value));
+            if ($t == 2) /* mode */
+                $value = strpos(strtolower($value), 'tutor') !== false ? 'TUTOR' : 'TEST';
+            elseif ($t == 3) /* boolean */
+            {
+                $re = str_replace('/', '\\/', wfMsgNoTrans('mwquizzer-parse-true'));
+                $value = preg_match("/$re/uis", $value) ? 1 : 0;
+            }
+            elseif ($t == 4) /* integer */
+                $value = intval($value);
+            /* else ($t == 1) // just a string */
+        }
+        return $value;
+    }
+
+    const ST_OUTER = 0;
+    const ST_QUESTION = 1;
+    const ST_PARAM_DD = 2;
+    const ST_CHOICE = 3;
+    const ST_CHOICES = 4;
+
+    /* parseQuiz() using a state machine :-) */
+    static function parseQuiz2($html)
+    {
+        self::getRegexps();
+        $document = DOMParseUtils::loadDOM($html);
+        $stack = array(array($document->documentElement, 0, false));
+        /* State index and variables: */
+        $st = self::ST_OUTER;
+        $q = array();
+        $quiz = array();
+        $field = '';
+        $append = NULL;
+        $correct = 0;
+        /* Loop through all elements: */
+        while ($stack)
+        {
+            /* p = Parent element, i = child Index, h = already Handled, l = strLen */
+            list($p, $i, $h, $l) = $stack[count($stack)-1];
+            if ($i >= $p->childNodes->length)
+            {
+                array_pop($stack);
+                if ($append && !$h)
+                {
+                    /* Remove children from the end of $append[0]
+                       and append element itself */
+                    $append[0] = substr($append[0], 0, $l) . $document->saveXML($p);
+                }
+                continue;
+            }
+            $stack[count($stack)-1][1]++;
+            $e = $p->childNodes->item($i);
+            if ($e->nodeType == XML_ELEMENT_NODE)
+            {
+                $fall = false;
+                if (preg_match('/^h(\d)$/is', $e->nodeName, $m))
+                {
+                    $chk = DOMParseUtils::checkNode($e, self::$regexps[0], true);
+                    if ($chk)
+                    {
+                        $level = $m[1];
+                        if ($chk[1][0][0])
+                        {
+                            /* Question */
+                            $st = self::ST_QUESTION;
+                            $q[] = array(
+                                'qn_label' => DOMParseUtils::saveChildren($chk[0], true),
+                            );
+                            $append = array(&$q[count($q)-1]['qn_text']);
+                        }
+                        elseif ($st == self::ST_OUTER)
+                        {
+                            $st = self::ST_OUTER;
+                            $field = '';
+                            foreach ($chk[1] as $i => $c)
+                            {
+                                if ($c[0])
+                                {
+                                    $field = self::$test_keys[$i-1];
+                                    break;
+                                }
+                            }
+                            if ($field)
+                            {
+                                /* Parameter */
+                                $append = array(&$quiz["test_$field"]);
+                            }
+                        }
+                    }
+                    elseif ($st == self::ST_QUESTION || $st == self::ST_CHOICE || $st == self::ST_CHOICES)
+                    {
+                        $chk = DOMParseUtils::checkNode($e, self::$regexps[2], true);
+                        if ($chk)
+                        {
+                            /* Question subsection */
+                            $sid = '';
+                            foreach ($chk[1] as $i => $c)
+                            {
+                                if ($c[0])
+                                {
+                                    $sid = self::$qn_keys[$i];
+                                    break;
+                                }
+                            }
+                            if (!$sid)
+                            {
+                            }
+                            elseif ($sid == 'comments')
+                            {
+                                /* Question comments */
+                                $append = NULL;
+                            }
+                            elseif ($sid == 'explanation' || $sid == 'label')
+                            {
+                                /* Question field */
+                                $append = array(&$q[count($q)-1]["qn_$sid"]);
+                            }
+                            else
+                            {
+                                /* Some kind of choice(s) section */
+                                $correct = $sid == 'correct' || $sid == 'corrects' ? 1 : 0;
+                                if ($sid == 'correct' || $sid == 'choice')
+                                {
+                                    $q[count($q)-1]['choices'][] = array('ch_correct' => $correct);
+                                    $st = self::ST_CHOICE;
+                                    $append = array(&$q[count($q)-1]['choices'][count($q[count($q)-1]['choices'])-1]['ch_text']);
+                                }
+                                else
+                                {
+                                    $st = self::ST_CHOICES;
+                                    $append = NULL;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            /* INFO: heading inside question */
+                            $fall = true;
+                        }
+                    }
+                    else
+                    {
+                        /* INFO: unknown heading */
+                        $fall = true;
+                    }
+                }
+                elseif (($st == self::ST_OUTER || $st == self::ST_PARAM_DD) && $e->nodeName == 'dt')
+                {
+                    $chk = DOMParseUtils::checkNode($e, self::$regexps[1], true);
+                    if ($chk)
+                    {
+                        $st = self::ST_OUTER;
+                        $field = '';
+                        foreach ($chk[1] as $i => $c)
+                        {
+                            if ($c[0])
+                            {
+                                $field = self::$test_keys[$i-1];
+                                break;
+                            }
+                        }
+                        if ($field)
+                        {
+                            /* Parameter */
+                            $st = self::ST_PARAM_DD;
+                        }
+                    }
+                    else
+                    {
+                        /* INFO: unknown <dt> key */
+                        $fall = true;
+                    }
+                }
+                elseif ($st == self::ST_PARAM_DD && $e->nodeName == 'dd')
+                {
+                    /* Value for $field */
+                    $value = self::transformFieldValue($field, DOMParseUtils::saveChildren($e));
+                    $quiz["test_$field"] = $value;
+                    $st = self::ST_OUTER;
+                    $field = '';
+                }
+                elseif ($st == self::ST_CHOICE && $e->nodeName == 'ul' &&
+                    $e->childNodes->length == 1 && !$append[0])
+                {
+                    /* <ul> with single <li> inside choice */
+                    $e = $e->childNodes->item(0);
+                    $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
+                    if ($chk)
+                    {
+                        $e = $chk[0];
+                        $n = count($q[count($q)-1]['choices']);
+                        $q[count($q)-1]['choices'][$n-1]['ch_correct'] = true;
+                    }
+                    $append[0] .= trim(DOMParseUtils::saveChildren($e));
+                }
+                elseif ($st == self::ST_CHOICE && $e->nodeName == 'p')
+                {
+                    if ($append[0])
+                        $append[0] .= '<br />';
+                    $append[0] .= trim(DOMParseUtils::saveChildren($e));
+                }
+                elseif ($st == self::ST_CHOICES && $e->nodeName == 'li')
+                {
+                    $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
+                    $c = $correct;
+                    if ($chk)
+                    {
+                        $e = $chk[0];
+                        $c = 1;
+                    }
+                    $q[count($q)-1]['choices'][] = array(
+                        'ch_correct' => $c,
+                        'ch_text' => trim(DOMParseUtils::saveChildren($e)),
+                    );
+                }
+                else
+                    $fall = true;
+                if ($fall)
+                {
+                    /* Save position inside append-string to remove
+                       children before appending the element itself */
+                    $stack[] = array($e, 0, false, $append ? strlen($append[0]) : 0);
+                }
+                else
+                    $stack[count($stack)-1][2] = true;
+            }
+        }
+        $quiz['questions'] = $q;
+        return $quiz;
+    }
+
     /* Parse $text and update data of the quiz linked to article title */
     static function updateQuiz($article, $text)
     {
@@ -225,7 +448,7 @@ class MediawikiQuizzerUpdater
             $hash = $q['qn_text'];
             foreach ($q['choices'] as $c)
                 $hash .= $c['ch_text'];
-            $hash = preg_replace('/\s+/s', '', $hash);
+            $hash = mb_strtolower(preg_replace('/\s+/s', '', $hash));
             $hash = md5($hash);
             foreach ($q['choices'] as $j => $c)
             {
@@ -312,6 +535,7 @@ class MediawikiQuizzerPage extends SpecialPage
         global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath;
         $args = $wgRequest->getValues();
         wfLoadExtensionMessages('MediawikiQuizzer');
+        $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
         $mode = $args['mode'];
         if ($mode == 'check')
@@ -381,11 +605,11 @@ class MediawikiQuizzerPage extends SpecialPage
         while ($q = $dbr->fetchRow($result))
         {
             if (!$variant &&
-                $q['qn_autofilter_min_tries'] > 0 && $q['tries'] >= $q['qn_autofilter_min_tries'] &&
-                $q['correct_tries']/$q['tries'] >= $q['qn_autofilter_correct_percent']/100.0)
+                $test['test_autofilter_min_tries'] > 0 && $q['tries'] >= $test['test_autofilter_min_tries'] &&
+                $q['correct_tries']/$q['tries'] >= $test['test_autofilter_correct_percent']/100.0)
             {
                 /* Statistics tells us this question is too simple, skip it */
-                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].', because correct percent = '.$q['correct_tries'].'/'.$q['tries'].' >= '.$q['qn_autofilter_correct_percent']."%\n");
+                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].', because correct percent = '.$q['correct_tries'].'/'.$q['tries'].' >= '.$test['test_autofilter_correct_percent']."%\n");
                 continue;
             }
 
@@ -403,7 +627,8 @@ class MediawikiQuizzerPage extends SpecialPage
             {
                 if ($choice['ch_correct'])
                     $q['correct_count']++;
-                $q['choices'][$choice['ch_num']] = $choice;
+                $q['choiceByNum'][$choice['ch_num']] = $choice;
+                $q['choices'][] = &$q['choiceByNum'][$choice['ch_num']];
             }
             $dbr->freeResult($result2);
 
@@ -422,31 +647,31 @@ class MediawikiQuizzerPage extends SpecialPage
 
             // optionally shuffle choices
             if (!$variant && $test['test_shuffle_choices'])
-            {
-                $shuffled = $q['choices'];
-                shuffle($shuffled);
-                $q['choices'] = array();
-                foreach ($shuffled as $choice)
-                    $q['choices'][$choice['ch_num']] = $choice;
-            }
+                shuffle($q['choices']);
 
             // build an array of correct choices
             $q['correct_choices'] = array();
-            foreach ($q['choices'] as $i => $choice)
+            $i = 0;
+            foreach ($q['choices'] as $choice)
             {
                 if ($choice['ch_correct'])
                 {
                     $choice['index'] = $i+1;
-                    $q['correct_choices'][] = &$choice;
+                    $q['correct_choices'][] = $choice;
                 }
+                $i++;
             }
 
-            // add 1/n for correct answers
-            $q['score_correct'] = 1.0 / $q['correct_count'];
-            // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
-            $q['score_incorrect'] = -1.0 / (count($q['choices']) - $q['correct_count']);
+            if ($q['correct_count'])
+            {
+                // add 1/n for correct answers
+                $q['score_correct'] = 1.0 / $q['correct_count'];
+                // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
+                $q['score_incorrect'] = -1.0 / (count($q['choices']) - $q['correct_count']);
+            }
 
-            $test['questions'][$q['qn_hash']] = $q;
+            $test['questionByHash'][$q['qn_hash']] = $q;
+            $test['questions'][] = &$test['questionByHash'][$q['qn_hash']];
         }
         $dbr->freeResult($result);
 
@@ -463,12 +688,12 @@ class MediawikiQuizzerPage extends SpecialPage
             $nt = array();
             foreach($variant as $q)
             {
-                $nq = $test['questions'][$q[0]];
+                $nq = $test['questionByHash'][$q[0]];
                 if (!$nq)
                     continue;
                 $nc = array();
                 foreach ($q[1] as $num)
-                    $nc[] = $nq['choices'][$num];
+                    $nc[] = $nq['choiceByNum'][$num];
                 $nq['choices'] = $nc;
                 $nt[] = $nq;
             }
@@ -478,9 +703,15 @@ class MediawikiQuizzerPage extends SpecialPage
         // a variant ID is computed using hashes of selected questions and sequences of their answers
         $variant = array();
         foreach ($test['questions'] as $q)
-            $variant[] = array($q['qn_hash'], array_keys($q['choices']));
+        {
+            $v = array($q['qn_hash']);
+            foreach ($q['choices'] as $c)
+                $v[1][] = $c['ch_num'];
+            $variant[] = $v;
+        }
         $test['variant_hash'] = serialize($variant);
         $test['variant_hash_crc32'] = crc32($test['variant_hash']);
+        $test['variant_hash_crc32'] += 0x80000000;
         $test['variant_hash_md5'] = md5($test['variant_hash']);
 
         $test['random_correct'] = 0;
@@ -497,7 +728,7 @@ class MediawikiQuizzerPage extends SpecialPage
     }
 
     /* Get a table with question numbers linked to the appropriate questions */
-    function getToc($n)
+    function getToc($n, $trues = false)
     {
         if ($n <= 0)
             return '';
@@ -507,8 +738,17 @@ class MediawikiQuizzerPage extends SpecialPage
             $row = '';
             for ($j = 0; $j < 10; $j++, $k++)
             {
-                $text = $k < $n ? self::xelement('a', array('href' => "#q$k"), $k+1) : '&nbsp;';
-                $row .= self::xelement('td', NULL, $text);
+                $args = NULL;
+                if ($k >= $n)
+                    $text = '';
+                elseif ($trues && !$trues[$k])
+                {
+                    $text = $k+1;
+                    $args = array('class' => 'mwq-noitem');
+                }
+                else
+                    $text = self::xelement('a', array('href' => "#q$k"), $k+1);
+                $row .= self::xelement('td', $args, $text);
             }
             $s .= self::xelement('tr', NULL, $row);
         }
@@ -520,29 +760,30 @@ class MediawikiQuizzerPage extends SpecialPage
     function getQuestionList($questions, $inputs = false)
     {
         $html = '';
-        $i = 0;
         foreach ($questions as $k => $q)
         {
             $html .= Xml::element('hr');
-            $html .= self::xelement('a', array('name' => "q$i"), '', false);
-            $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $i+1));
+            $html .= self::xelement('a', array('name' => "q$k"), '', false);
+            $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $k+1));
             $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
             $choices = '';
-            foreach($q['choices'] as $ck => $c)
+            foreach($q['choices'] as $i => $c)
             {
                 if ($inputs)
                 {
-                    /* Question hashes are hidden from user. They are taken from ticket during check. */
-                    $h = Xml::radio("a[$i]", $c['ch_num'], array('id' => "q$i-c$ck")) .
-                         '&nbsp;' .
-                         $c['ch_text'];
+                    /* Question hashes and choice numbers are hidden from user.
+                       They are taken from ticket during check. */
+                    $h = Xml::element('input', array(
+                        'name' => "a[$k]",
+                        'type' => 'radio',
+                        'value' => $i+1,
+                    )) . '&nbsp;' . $c['ch_text'];
                 }
                 else
                     $h = $c['ch_text'];
                 $choices .= self::xelement('li', array('class' => 'mwq-choice'), $h);
             }
             $html .= self::xelement('ol', array('class' => 'mwq-choices'), $choices);
-            $i++;
         }
         return $html;
     }
@@ -604,16 +845,22 @@ EOT;
             'id'         => $test['test_id'],
             'ticket_id'  => $ticket['tk_id'],
             'ticket_key' => $ticket['tk_key'],
+            'mode'       => 'check',
         ));
 
         $form = '';
         $form .= wfMsg('mwquizzer-prompt') . '&nbsp;' . Xml::input('prompt', 20);
+        $form .= self::xelement('p', NULL, Xml::submitButton(wfMsg('mwquizzer-submit')));
         $form .= $this->getQuestionList($test['questions'], true);
+        $form .= Xml::element('hr');
+        $form .= Xml::submitButton(wfMsg('mwquizzer-submit'));
         $form = self::xelement('form', array('action' => $action, 'method' => 'POST'), $form);
 
         $html = $this->getToc(count($test['questions']));
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
+        $html .= wfMsg('mwquizzer-variant', $test['variant_hash_crc32']);
+        $html .= Xml::element('hr');
         $html .= $this->getCounterJs();
         $html .= $form;
 
@@ -635,8 +882,7 @@ EOT;
         $html = '';
 
         /* Display question list */
-        $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
-        $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-question-sheet'));
+        $html .= self::xelement('h2', array('style' => 'page-break-after: before'), wfMsg('mwquizzer-question-sheet'));
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
         $html .= $this->getQuestionList($test['questions'], false);
@@ -651,8 +897,7 @@ EOT;
             $title && method_exists($title, 'userCanReadEx') && $title->userCanReadEx())
         {
             /* Display check-list to users who can read source article */
-            $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
-            $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-answer-sheet'));
+            $html .= self::xelement('h2', array('style' => 'page-break-after: before'), wfMsg('mwquizzer-answer-sheet'));
             $html .= $this->getCheckList($test, $args, true);
         }
 
@@ -665,7 +910,7 @@ EOT;
     function getCheckList($test, $args, $checklist = false)
     {
         $table = '';
-        $table .= self::xelement('th', NULL, wfMsg('mwquizzer-table-number'));
+        $table .= self::xelement('th', array('class' => 'mwq-tn'), wfMsg('mwquizzer-table-number'));
         $table .= self::xelement('th', NULL, wfMsg('mwquizzer-table-answer'));
         if ($checklist)
         {
@@ -684,9 +929,11 @@ EOT;
                 foreach ($q['correct_choices'] as $c)
                     $correct_indexes[] = $c['index'];
                 $row[] = implode(', ', $correct_indexes);
-                $row[] = $q['tries'] ? $q['correct_tries'] . '/' . $q['tries'] . ' ≈ ' . round($q['correct_tries'] * 100.0 / $q['tries']) : '';
+                $row[] = $q['tries'] ? $q['correct_tries'] . '/' . $q['tries'] . ' ≈ ' . round($q['correct_tries'] * 100.0 / $q['tries']) . '%' : '';
                 $row[] = $q['qn_label'];
             }
+            else
+                array_push($row, '', '');
             $table .= '<tr><td>'.implode('</td><td>', $row).'</td></tr>';
         }
         $table = self::xelement('table', array('class' => $checklist ? 'mwq-checklist' : 'mwq-questionnaire'), $table);
@@ -708,22 +955,26 @@ EOT;
     }
 
     /* Load answers from POST data, save them into DB and return as the result */
-    function checkAnswers($test, $ticket_id, $args)
+    function checkAnswers($test, $ticket)
     {
         $answers = array();
         $rows = array();
         foreach ($test['questions'] as $i => $q)
         {
-            $n = $args['a'][$i];
-            $is_correct = $q['choices'][$n]['ch_correct'] ? 1 : 0;
-            $answers[$q['qn_hash']] = $n;
-            /* Build rows for saving answers into database */
-            $rows[] = array(
-                'cs_ticket'        => $ticket['tk_id'],
-                'cs_question_hash' => $q['qn_hash'],
-                'cs_choice_num'    => $n,
-                'cs_correct'       => $is_correct,
-            );
+            $n = $_POST['a'][$i];
+            if ($n)
+            {
+                $n--;
+                $is_correct = $q['choices'][$n]['ch_correct'] ? 1 : 0;
+                $answers[$q['qn_hash']] = $q['choices'][$n]['ch_num'];
+                /* Build rows for saving answers into database */
+                $rows[] = array(
+                    'cs_ticket'        => $ticket['tk_id'],
+                    'cs_question_hash' => $q['qn_hash'],
+                    'cs_choice_num'    => $q['choices'][$n]['ch_num'],
+                    'cs_correct'       => $is_correct,
+                );
+            }
         }
         $dbw = wfGetDB(DB_MASTER);
         $dbw->insert('mwq_choice_stats', $rows, __METHOD__);
@@ -750,7 +1001,7 @@ EOT;
         else
         {
             /* Else check POSTed answers */
-            $testresult['answers'] = $this->checkAnswers($test, $ticket['tk_id'], $args);
+            $testresult['answers'] = $this->checkAnswers($test, $ticket);
             /* Update ticket */
             $userid = $wgUser->getId();
             if (!$userid)
@@ -770,12 +1021,11 @@ EOT;
         }
 
         /* Calculate scores */
-        foreach ($test['questions'] as $q)
+        foreach ($testresult['answers'] as $hash => $n)
         {
-            $n = $testresult['answers'][$q['qn_hash']];
-            $c = $q['choices'][$n]['ch_correct'] ? 1 : 0;
+            $c = $test['questionByHash'][$hash]['choiceByNum'][$n]['ch_correct'] ? 1 : 0;
             $testresult['correct_count'] += $c;
-            $testresult['score'] += $q['choices'][$n][$c ? 'score_correct' : 'score_incorrect'];
+            $testresult['score'] += $test['questionByHash'][$hash][$c ? 'score_correct' : 'score_incorrect'];
         }
 
         $testresult['correct_percent'] = round($testresult['correct_count']/count($test['questions'])*100, 1);
@@ -802,11 +1052,11 @@ EOT;
         foreach ($test['questions'] as $q)
         {
             $num = $testresult['answers'][$q['qn_hash']];
-            if (!$num || !$q['choices'][$num]['ch_correct'])
+            if (!$num || !$q['choiceByNum'][$num]['ch_correct'])
             {
                 $qn_text = trim(strip_tags($q['qn_text']));
                 $qn_correct = trim(strip_tags($q['correct_choices'][0]['ch_text']));
-                $qn_user = $num ? trim(strip_tags($q['choices'][$num]['ch_text'])) : '';
+                $qn_user = $num ? trim(strip_tags($q['choiceByNum'][$num]['ch_text'])) : '';
                 /* TODO (?) format this as HTML and send HTML emails */
                 $text .= <<<EOT
 ================================================================================
@@ -883,10 +1133,11 @@ EOT;
        display results and completion certificate */
     function checkTest($args)
     {
+        global $wgOut, $wgTitle;
+
         $ticket = $this->loadTicket($args['ticket_id'], $args['ticket_key']);
         if (!$ticket)
         {
-            global $wgTitle;
             if ($args['id'])
             {
                 $test = $this->loadTest($args['id']);
@@ -897,12 +1148,13 @@ EOT;
             return;
         }
 
-        $test = $this->loadTest($ticket['tk_test'], $ticket['tk_variant']);
+        $test = $this->loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
+        $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
         $testresult = $this->checkOrLoadResult($ticket, $test, $args);
 
         $html = '';
         if ($testresult['seen'])
-            $html .= wfMsg('mwquizzer-variant-already-seen');
+            $html .= wfMsg('mwquizzer-variant-already-seen', $href);
 
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
@@ -918,10 +1170,7 @@ EOT;
         }
 
         if ($test['test_mode'] == 'TUTOR')
-        {
-            $html .= Xml::element('hr');
-            $html .= $this->getTutorList($ticket, $test, $testresult);
-        }
+            $html .= $this->getTutorHtml($ticket, $test, $testresult);
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
         $wgOut->addHTML($html);
@@ -932,20 +1181,21 @@ EOT;
     {
         $cell = self::xelement('span', array('class' => 'mwq-count'), $n);
         $cell .= ' ≈ ' . $p . '%';
-        return $cell;
+        return self::xelement('td', NULL, $cell);
     }
 
     /* Get HTML code for result table (answers/score count/percent) */
     function getResultHtml($ticket, $test, $testresult)
     {
-        $html = self::xelement('h2', NULL, wfMsg('mwquizzer-results'));
         $row = self::xelement('th', NULL, wfMsg('mwquizzer-right-answers'))
              . self::xelement('th', NULL, wfMsg('mwquizzer-score'));
         $html .= self::xelement('tr', NULL, $row);
         $row = self::resultCell($testresult['correct_count'], $testresult['correct_percent'])
              . self::resultCell($testresult['score'], $testresult['score_percent']);
         $html .= self::xelement('tr', NULL, $row);
-        $html .= self::xelement('p', array('class' => 'mwq-rand'), wfMsg('mwquizzer-random-correct', round($testresult['random_correct'], 1)));
+        $html = self::xelement('table', array('class' => 'mwq-result'), $html);
+        $html = self::xelement('h2', NULL, wfMsg('mwquizzer-results')) . $html;
+        $html .= self::xelement('p', array('class' => 'mwq-rand'), wfMsg('mwquizzer-random-correct', round($test['random_correct'], 1)));
         return $html;
     }
 
@@ -995,7 +1245,8 @@ EOT;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
-        mkdir($egMWQuizzerCertificateDir . $hash, 0777, true);
+        if (!is_dir($egMWQuizzerCertificateDir . $hash))
+            mkdir($egMWQuizzerCertificateDir . $hash, 0777, true);
         $certpath = $egMWQuizzerCertificateDir . $hash . $code;
         $certuri = $egMWQuizzerCertificateUri . $hash . $code;
         if (!preg_match('#^[a-z]+://#is', $certuri))
@@ -1026,13 +1277,13 @@ EOT;
        correct answers and explanations after testing. */
     function getTutorHtml($ticket, $test, $testresult)
     {
-        $cnt = 0;
-        foreach ($test['questions'] as $q)
+        $items = array();
+        foreach ($test['questions'] as $k => $q)
         {
             $num = $testresult['answers'][$q['qn_hash']];
-            if ($num && $q['choices'][$num]['ch_correct'])
+            if ($num && $q['choiceByNum'][$num]['ch_correct'])
                 continue;
-            $cnt++;
+            $items[$k] = true;
             $correct = $q['correct_choices'][0];
             $html .= Xml::element('hr');
             $html .= self::xelement('a', array('name' => "q$k"), '', false);
@@ -1048,11 +1299,11 @@ EOT;
             if ($num)
             {
                 $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-your-answer'));
-                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), $q['choices'][$num]['ch_text']);
+                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), $q['choiceByNum'][$num]['ch_text']);
             }
         }
-        if ($cnt)
-            $html = $this->getToc($qn) . $html;
+        if ($items)
+            $html = $this->getToc(count($test['questions']), $items) . $html;
         return $html;
     }
 }

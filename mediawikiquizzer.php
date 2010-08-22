@@ -83,7 +83,9 @@ class MediawikiQuizzer
 
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit)
     {
-        if ($article->getTitle()->getNamespace() == NS_QUIZ)
+        $t = $article->getTitle();
+        if ($t->getNamespace() == NS_QUIZ &&
+            strpos($t->getText(), '/') === false)
             MediawikiQuizzerUpdater::updateQuiz($article, $text);
         return true;
     }
@@ -91,7 +93,8 @@ class MediawikiQuizzer
     static function quiz_actions($content, $attr, $parser)
     {
         $t = $parser->getTitle();
-        if ($t && $t->getNamespace() == NS_QUIZ)
+        if ($t && $t->getNamespace() == NS_QUIZ &&
+            strpos($t->getText(), '/') === false)
         {
             wfLoadExtensionMessages('MediawikiQuizzer');
             $s = Title::newFromText('Special:MediawikiQuizzer');
