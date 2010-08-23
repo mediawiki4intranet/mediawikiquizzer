@@ -815,9 +815,7 @@ class MediawikiQuizzerPage extends SpecialPage
             $variant[] = $v;
         }
         $test['variant_hash'] = serialize($variant);
-        $test['variant_hash_crc32'] = crc32($test['variant_hash']);
-        $test['variant_hash_crc32'] += 0x80000000;
-        $test['variant_hash_md5'] = md5($test['variant_hash']);
+        $test['variant_hash_md5'] = strtoupper(md5($test['variant_hash']));
 
         $test['random_correct'] = 0;
         $test['max_score'] = 0;
@@ -964,7 +962,7 @@ EOT;
         $html = $this->getToc(count($test['questions']));
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
-        $html .= wfMsg('mwquizzer-variant', $test['variant_hash_crc32']);
+        $html .= wfMsg('mwquizzer-variant', $test['variant_hash_md5']);
         $html .= Xml::element('hr');
         $html .= $this->getCounterJs();
         $html .= $form;
@@ -1268,7 +1266,7 @@ EOT;
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
 
-        $html .= wfMsg('mwquizzer-variant', $test['variant_hash_crc32']);
+        $html .= wfMsg('mwquizzer-variant', $test['variant_hash_md5']);
 
         $html .= $this->getResultHtml($ticket, $test, $testresult);
 
