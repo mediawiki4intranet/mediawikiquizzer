@@ -1350,7 +1350,7 @@ EOT;
     /* Generate a completion certificate and get HTML code for the certificate */
     function getCertificateHtml($ticket, $test, $testresult)
     {
-        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer;
+        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer, $wgScriptPath;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
@@ -1361,7 +1361,7 @@ EOT;
         if (!preg_match('#^[a-z]+://#is', $certuri))
         {
             if ($certuri{0} != '/')
-                $certuri = "/$certuri";
+                $certuri = $wgScriptPath . "/$certuri";
             $certuri = $wgServer . $certuri;
         }
 

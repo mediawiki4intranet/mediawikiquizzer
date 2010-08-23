@@ -46,7 +46,7 @@ if (!$egMWQuizzerCertificateDir)
     $egMWQuizzerCertificateDir = str_replace("\\", "/", dirname(dirname(realpath($dir)))."/images/generated/diplomas");
 
 if (!$egMWQuizzerCertificateUri)
-    $egMWQuizzerCertificateUri = "$wgScriptPath/images/generated/diplomas";
+    $egMWQuizzerCertificateUri = "images/generated/diplomas";
 
 class MediawikiQuizzer
 {
