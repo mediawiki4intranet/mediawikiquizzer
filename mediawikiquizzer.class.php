@@ -210,32 +210,43 @@ class MediawikiQuizzerUpdater
                 $value = intval($value);
             /* else ($t == 1) // just a string */
         }
+        else
+            $value = trim($value);
         return $value;
     }
 
-    const ST_OUTER = 0;
-    const ST_QUESTION = 1;
-    const ST_PARAM_DD = 2;
-    const ST_CHOICE = 3;
-    const ST_CHOICES = 4;
+    static function textlog($s)
+    {
+        if (is_object($s))
+            $s = DOMParseUtils::saveChildren($s);
+        return trim(str_replace("\n", " ", strip_tags($s)));
+    }
+
+    /* states: */
+    const ST_OUTER = 0;     /* Outside everything */
+    const ST_QUESTION = 1;  /* Inside question */
+    const ST_PARAM_DD = 2;  /* Waiting for <dd> with quiz field value */
+    const ST_CHOICE = 3;    /* Inside single choice section */
+    const ST_CHOICES = 4;   /* Inside multiple choices section */
 
     /* parseQuiz() using a state machine :-) */
     static function parseQuiz2($html)
     {
         self::getRegexps();
+        $log = '';
         $document = DOMParseUtils::loadDOM($html);
-        $stack = array(array($document->documentElement, 0, false));
-        /* State index and variables: */
-        $st = self::ST_OUTER;
-        $q = array();
-        $quiz = array();
-        $field = '';
-        $append = NULL;
-        $correct = 0;
+        /* Stack: [ [ Element, ChildIndex, AlreadyProcessed, AppendStrlen ] , [ ... ] ] */
+        $stack = array(array($document->documentElement, 0, false, 0));
+        $st = self::ST_OUTER;   /* State index */
+        $append = NULL;         /* Array(&$str) or NULL. When array(&$str), content is appended to $str. */
+        /* Variables: */
+        $q = array();           /* Questions */
+        $quiz = array();        /* Quiz field => value */
+        $field = '';            /* Current parsed field */
+        $correct = 0;           /* Is current choice(s) section for correct choices */
         /* Loop through all elements: */
         while ($stack)
         {
-            /* p = Parent element, i = child Index, h = already Handled, l = strLen */
             list($p, $i, $h, $l) = $stack[count($stack)-1];
             if ($i >= $p->childNodes->length)
             {
@@ -255,20 +266,39 @@ class MediawikiQuizzerUpdater
                 $fall = false;
                 if (preg_match('/^h(\d)$/is', $e->nodeName, $m))
                 {
+                    $level = $m[1];
+                    $log_el = str_repeat('=', $level);
+                    $log_el = $log_el . self::textlog($e) . $log_el;
+                    /* Match question/parameter section title */
                     $chk = DOMParseUtils::checkNode($e, self::$regexps[0], true);
                     if ($chk)
                     {
-                        $level = $m[1];
                         if ($chk[1][0][0])
                         {
-                            /* Question */
+                            if ($q)
+                            {
+                                /* Check previous question for correctness */
+                                $lq = $q[count($q)-1];
+                                $ncorrect = 0;
+                                foreach ($lq['choices'] as $lc)
+                                    if ($lc['ch_correct'])
+                                        $ncorrect++;
+                                if (!count($lq['choices']))
+                                    $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
+                                elseif ($ncorrect >= $lq['choices'])
+                                    $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
+                                elseif (!$ncorrect)
+                                    $log .= "[ERROR] No correct choices for question: ".self::textlog($lq['qn_text'])."\n";
+                            }
+                            /* Question section */
+                            $log .= "[INFO] Begin question section: $log_el\n";
                             $st = self::ST_QUESTION;
                             $q[] = array(
                                 'qn_label' => DOMParseUtils::saveChildren($chk[0], true),
                             );
                             $append = array(&$q[count($q)-1]['qn_text']);
                         }
-                        elseif ($st == self::ST_OUTER)
+                        elseif ($st == self::ST_OUTER || $st == self::ST_PARAM_DD)
                         {
                             $st = self::ST_OUTER;
                             $field = '';
@@ -283,8 +313,20 @@ class MediawikiQuizzerUpdater
                             if ($field)
                             {
                                 /* Parameter */
+                                $log .= "[INFO] Begin quiz field \"$field\" section: $log_el\n";
                                 $append = array(&$quiz["test_$field"]);
                             }
+                            else
+                            {
+                                /* This should never happen ! */
+                                $line = __FILE__.':'.__LINE__;
+                                $log .= "[ERROR] MYSTICAL BUG: Unknown quiz field at $line in: $log_el\n";
+                            }
+                        }
+                        else
+                        {
+                            /* INFO: Parameter section inside question section / choice section */
+                            $log .= "[WARN] Field section must come before questions: $log_el\n";
                         }
                     }
                     elseif ($st == self::ST_QUESTION || $st == self::ST_CHOICE || $st == self::ST_CHOICES)
@@ -292,7 +334,7 @@ class MediawikiQuizzerUpdater
                         $chk = DOMParseUtils::checkNode($e, self::$regexps[2], true);
                         if ($chk)
                         {
-                            /* Question subsection */
+                            /* Question sub-section */
                             $sid = '';
                             foreach ($chk[1] as $i => $c)
                             {
@@ -304,29 +346,37 @@ class MediawikiQuizzerUpdater
                             }
                             if (!$sid)
                             {
+                                /* This should never happen ! */
+                                $line = __FILE__.':'.__LINE__;
+                                $log .= "[ERROR] MYSTICAL BUG: Unknown question field at $line in: $log_el\n";
                             }
                             elseif ($sid == 'comments')
                             {
                                 /* Question comments */
+                                $log .= "[INFO] Begin question comments: $log_el\n";
                                 $append = NULL;
                             }
                             elseif ($sid == 'explanation' || $sid == 'label')
                             {
                                 /* Question field */
+                                $log .= "[INFO] Begin question $sid: $log_el\n";
                                 $append = array(&$q[count($q)-1]["qn_$sid"]);
                             }
                             else
                             {
                                 /* Some kind of choice(s) section */
                                 $correct = $sid == 'correct' || $sid == 'corrects' ? 1 : 0;
+                                $lc = $correct ? 'correct choice' : 'choice';
                                 if ($sid == 'correct' || $sid == 'choice')
                                 {
+                                    $log .= "[INFO] Begin single $lc section: $log_el\n";
                                     $q[count($q)-1]['choices'][] = array('ch_correct' => $correct);
                                     $st = self::ST_CHOICE;
                                     $append = array(&$q[count($q)-1]['choices'][count($q[count($q)-1]['choices'])-1]['ch_text']);
                                 }
                                 else
                                 {
+                                    $log .= "[INFO] Begin multiple $lc section: $log_el\n";
                                     $st = self::ST_CHOICES;
                                     $append = NULL;
                                 }
@@ -334,19 +384,22 @@ class MediawikiQuizzerUpdater
                         }
                         else
                         {
-                            /* INFO: heading inside question */
+                            /* INFO: unknown heading inside question */
+                            $log .= "[WARN] Unparsed heading inside question: $log_el\n";
                             $fall = true;
                         }
                     }
                     else
                     {
                         /* INFO: unknown heading */
+                        $log .= "[WARN] Unparsed heading outside question: $log_el\n";
                         $fall = true;
                     }
                 }
                 elseif (($st == self::ST_OUTER || $st == self::ST_PARAM_DD) && $e->nodeName == 'dt')
                 {
                     $chk = DOMParseUtils::checkNode($e, self::$regexps[1], true);
+                    $log_el = '; ' . trim(strip_tags(DOMParseUtils::saveChildren($e))) . ':';
                     if ($chk)
                     {
                         $st = self::ST_OUTER;
@@ -362,12 +415,20 @@ class MediawikiQuizzerUpdater
                         if ($field)
                         {
                             /* Parameter */
+                            $log .= "[INFO] Begin definition list item for quiz field \"$field\": $log_el\n";
                             $st = self::ST_PARAM_DD;
+                        }
+                        else
+                        {
+                            /* This should never happen ! */
+                            $line = __FILE__.':'.__LINE__;
+                            $log .= "[ERROR] MYSTICAL BUG: Unknown quiz field at $line in: $log_el\n";
                         }
                     }
                     else
                     {
                         /* INFO: unknown <dt> key */
+                        $log .= "[WARN] Unparsed definition list item: $log_el\n";
                         $fall = true;
                     }
                 }
@@ -375,21 +436,24 @@ class MediawikiQuizzerUpdater
                 {
                     /* Value for $field */
                     $value = self::transformFieldValue($field, DOMParseUtils::saveChildren($e));
+                    $log .= "[INFO] Quiz $field = ".self::textlog($value)."\n";
                     $quiz["test_$field"] = $value;
                     $st = self::ST_OUTER;
                     $field = '';
                 }
-                elseif ($st == self::ST_CHOICE && $e->nodeName == 'ul' &&
+                elseif ($st == self::ST_CHOICE && ($e->nodeName == 'ul' || $e->nodeName == 'ol') &&
                     $e->childNodes->length == 1 && !$append[0])
                 {
-                    /* <ul> with single <li> inside choice */
+                    /* <ul>/<ol> with single <li> inside choice */
+                    $log .= "[INFO] Stripping single-item list from single-choice section";
                     $e = $e->childNodes->item(0);
                     $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
                     if ($chk)
                     {
                         $e = $chk[0];
                         $n = count($q[count($q)-1]['choices']);
-                        $q[count($q)-1]['choices'][$n-1]['ch_correct'] = true;
+                        $q[count($q)-1]['choices'][$n-1]['ch_correct'] = 1;
+                        $log .= "[INFO] Correct choice marker is present in single-item list";
                     }
                     $append[0] .= trim(DOMParseUtils::saveChildren($e));
                 }
@@ -408,9 +472,11 @@ class MediawikiQuizzerUpdater
                         $e = $chk[0];
                         $c = 1;
                     }
+                    $children = DOMParseUtils::saveChildren($e);
+                    $log .= "[INFO] Parsed ".($c ? "correct " : "")."choice: ".trim(strip_tags($children))."\n";
                     $q[count($q)-1]['choices'][] = array(
                         'ch_correct' => $c,
-                        'ch_text' => trim(DOMParseUtils::saveChildren($e)),
+                        'ch_text' => trim($children),
                     );
                 }
                 else
@@ -426,6 +492,7 @@ class MediawikiQuizzerUpdater
             }
         }
         $quiz['questions'] = $q;
+        $quiz['test_log'] = $log;
         return $quiz;
     }
 
@@ -433,7 +500,7 @@ class MediawikiQuizzerUpdater
     static function updateQuiz($article, $text)
     {
         $html = self::parse($article, $text);
-        $quiz = self::parseQuiz($html);
+        $quiz = self::parseQuiz2($html);
         $quiz['test_id'] = mb_substr($article->getTitle()->getText(), 0, 32);
         if (!$quiz['questions'])
             return;
@@ -511,6 +578,44 @@ class MediawikiQuizzerUpdater
 
 class MediawikiQuizzerPage extends SpecialPage
 {
+    /* Display parse log for quiz article */
+    static function showParseLog($test_id)
+    {
+        global $wgOut, $wgScriptPath;
+        wfLoadExtensionMessages('MediawikiQuizzer');
+        $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
+        $dbr = wfGetDB(DB_SLAVE);
+        $log = $dbr->selectField('mwq_test', 'test_log', array('test_id' => $test_id), __FUNCTION__);
+        if ($log)
+        {
+            $html = '';
+            $a = self::xelement('a', array(
+                'href' => 'javascript:void(0)',
+                'onclick' => "document.getElementById('mwq-parselog').style.display='';document.getElementById('mwq-show-parselog').style.display='none'",
+            ), wfMsg('mwquizzer-show-parselog'));
+            $html .= self::xelement('p', array('id' => 'mwq-show-parselog'), $a);
+            $log = explode("\n", $log);
+            foreach ($log as &$s)
+            {
+                if (preg_match('/^\s*\[([^\]]*)\]\s*/s', $s, $m))
+                {
+                    $s = substr($s, strlen($m[0]));
+                    if (mb_strlen($s) > 120)
+                        $s = mb_substr($s, 0, 117) . '...';
+                    $s = str_repeat(' ', 5-strlen($m[1])) . self::xelement('span', array('class' => 'mwq-log-'.strtolower($m[1])), '['.$m[1].']') . ' ' . $s;
+                }
+            }
+            $log = self::xelement('pre', NULL, implode("\n", $log));
+            $a = self::xelement('a', array(
+                'href' => 'javascript:void(0)',
+                'onclick' => "document.getElementById('mwq-parselog').style.display='none';document.getElementById('mwq-show-parselog').style.display=''",
+            ), wfMsg('mwquizzer-hide-parselog'));
+            $log = self::xelement('p', array('id' => 'mwq-hide-parselog'), $a) . $log;
+            $html .= self::xelement('div', array('id' => 'mwq-parselog', 'style' => 'display: none'), $log);
+            $wgOut->addHTML($html);
+        }
+    }
+
     /* Identical to Xml::element, but does no htmlspecialchars() on $contents */
     static function xelement($element, $attribs = null, $contents = '', $allowShortTag = true)
     {

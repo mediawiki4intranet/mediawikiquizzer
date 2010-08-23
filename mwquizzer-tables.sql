@@ -29,6 +29,8 @@ CREATE TABLE /*$wgDBPrefix*/mwq_test (
   -- ...and questions with correct answer percent greater than Y ("too simple")
   -- but if qt_autofilter_min_tries <= 0 then autofilter is disabled
   test_autofilter_success_percent tinyint NOT NULL,
+  -- quiz article parse log
+  test_log blob NOT NULL,
   PRIMARY KEY (test_id)
 ) /*$wgDBTableOptions*/;
 

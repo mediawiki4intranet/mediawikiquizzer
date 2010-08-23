@@ -11,3 +11,8 @@
 .mwq-questionnaire th { width: 30%; }
 .mwq-checklist th { width: 25%; }
 .mwq-questionnaire .mwq-tn, .mwq-checklist .mwq-tn { width: 10%; }
+#mwq-parselog div { font-family: monospace; }
+#mwq-parselog pre { padding: 0; }
+.mwq-log-error { color: white; background-color: red; }
+.mwq-log-warn { color: black; background-color: #ffff00; }
+.mwq-log-info { color: #008000; }

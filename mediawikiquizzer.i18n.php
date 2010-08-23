@@ -16,6 +16,8 @@ $messages = array();
 $messages['en'] = array(
     'mediawikiquizzer'                  => 'MediaWiki Quizzer',
     'mwquizzer-actions'                 => '<p><a href="$2">Try the quiz "$1"</a> &nbsp; | &nbsp; <a href="$3">Export the quiz "$1"</a></p>',
+    'mwquizzer-show-parselog'           => '[+] Show quiz parse log',
+    'mwquizzer-hide-parselog'           => '[-] Hide quiz parse log',
 
     /* Errors */
     'mwquizzer-no-test-id-title'        => 'Quiz ID is undefined!',
@@ -88,6 +90,8 @@ $messages['en'] = array(
 $messages['ru'] = array(
     'mediawikiquizzer'                  => 'Опросы MediaWiki',
     'mwquizzer-actions'                 => '<p><a href="$2">Пройти тест «$1»</a> &nbsp; | &nbsp; <a href="$3">Экспортировать тест «$1»</a></p>',
+    'mwquizzer-show-parselog'           => '[+] Показать лог разбора страницы теста',
+    'mwquizzer-hide-parselog'           => '[-] Скрыть лог разбора страницы теста',
 
     /* Ошибки */
     'mwquizzer-no-test-id-title'        => 'Не задан идентификатор теста!',

@@ -31,6 +31,7 @@ $wgAutoloadClasses['MediawikiQuizzerUpdater'] = $dir . 'mediawikiquizzer.class.p
 $wgAutoloadClasses['DOMParseUtils'] = $dir . 'DOMParseUtils.php';
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'MediawikiQuizzer::LoadExtensionSchemaUpdates';
 $wgHooks['ArticleSaveComplete'][] = 'MediawikiQuizzer::ArticleSaveComplete';
+$wgHooks['ArticleViewHeader'][] = 'MediawikiQuizzer::ArticleViewHeader';
 $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
 
 /* DEFAULT SETTINGS GO HERE */
@@ -53,6 +54,11 @@ class MediawikiQuizzer
     {
         global $wgUser, $egMWQuizzerAdmins;
         return $wgUser->getId() && in_array($wgUser->getName(), $egMWQuizzerAdmins);
+    }
+
+    static function isQuiz($t)
+    {
+        return $t && $t->getNamespace() == NS_QUIZ && strpos($t->getText(), '/') === false;
     }
 
     static function setupNamespace($index)
@@ -83,18 +89,22 @@ class MediawikiQuizzer
 
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit)
     {
-        $t = $article->getTitle();
-        if ($t->getNamespace() == NS_QUIZ &&
-            strpos($t->getText(), '/') === false)
+        if (self::isQuiz($article->getTitle()))
             MediawikiQuizzerUpdater::updateQuiz($article, $text);
+        return true;
+    }
+
+    static function ArticleViewHeader(&$article, &$outputDone, &$pcache)
+    {
+        global $wgOut;
+        if (self::isQuiz($t = $article->getTitle()))
+            MediawikiQuizzerPage::showParseLog($t->getText());
         return true;
     }
 
     static function quiz_actions($content, $attr, $parser)
     {
-        $t = $parser->getTitle();
-        if ($t && $t->getNamespace() == NS_QUIZ &&
-            strpos($t->getText(), '/') === false)
+        if (self::isQuiz($t = $parser->getTitle()))
         {
             wfLoadExtensionMessages('MediawikiQuizzer');
             $s = Title::newFromText('Special:MediawikiQuizzer');
