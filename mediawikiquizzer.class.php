@@ -770,9 +770,9 @@ class MediawikiQuizzerPage extends SpecialPage
             if ($q['correct_count'])
             {
                 // add 1/n for correct answers
-                $q['score_correct'] = 1.0 / $q['correct_count'];
+                $q['score_correct'] = 1;
                 // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
-                $q['score_incorrect'] = -1.0 / (count($q['choices']) - $q['correct_count']);
+                $q['score_incorrect'] = -$q['correct_count'] / (count($q['choices']) - $q['correct_count']);
             }
 
             $test['questionByHash'][$q['qn_hash']] = $q;
@@ -1350,7 +1350,7 @@ EOT;
     /* Generate a completion certificate and get HTML code for the certificate */
     function getCertificateHtml($ticket, $test, $testresult)
     {
-        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer, $wgScriptPath;
+        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
@@ -1361,7 +1361,7 @@ EOT;
         if (!preg_match('#^[a-z]+://#is', $certuri))
         {
             if ($certuri{0} != '/')
-                $certuri = $wgScriptPath . "/$certuri";
+                $certuri = "/$certuri";
             $certuri = $wgServer . $certuri;
         }
 
