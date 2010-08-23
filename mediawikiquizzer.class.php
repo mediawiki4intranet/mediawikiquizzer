@@ -1163,9 +1163,12 @@ EOT;
                 $qn_correct = trim(strip_tags($q['correct_choices'][0]['ch_text']));
                 $qn_user = $num ? trim(strip_tags($q['choiceByNum'][$num]['ch_text'])) : '';
                 /* TODO (?) format this as HTML and send HTML emails */
+                $lab = $q['qn_label'];
+                if ($lab)
+                    $lab .= ' | ';
                 $text .= <<<EOT
 ================================================================================
-$msg_q $q[qt_num] | $q[qn_label] | $q[correct_tries]/$q[tries]
+$msg_q $q[qt_num] | $lab$q[correct_tries]/$q[tries]
 --------------------------------------------------------------------------------
 $qn_text
 
@@ -1200,6 +1203,7 @@ EOT;
         foreach ($values as &$v)
             $header .= $v[2] . ': ' . str_repeat(' ', $len-$v[3]) . $v[1] . "\n";
         $text = $header . $text;
+        $text = "<pre>\n$text\n</pre>";
         return $text;
     }
 
@@ -1208,7 +1212,7 @@ EOT;
     {
         global $egMWQuizzerAdmins, $wgEmergencyContact;
         /* TODO (?) send mail without correct answers to user */
-        $text = $this->buildMailText($ticket, $test, $testresults);
+        $text = $this->buildMailText($ticket, $test, $testresult);
         $sender = new MailAddress($wgEmergencyContact);
         foreach ($egMWQuizzerAdmins as $admin)
         {
@@ -1349,7 +1353,7 @@ EOT;
         global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
-        $hash = substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
+        $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
         if (!is_dir($egMWQuizzerCertificateDir . $hash))
             mkdir($egMWQuizzerCertificateDir . $hash, 0777, true);
         $certpath = $egMWQuizzerCertificateDir . $hash . $code;
@@ -1364,15 +1368,15 @@ EOT;
         if (!$this->drawCertificate($certpath, $ticket, $test, $testresult))
             return false;
 
-        $code = self::xelement('img', array('src' => "$certpath.thumb.jpg"));
-        $code = self::xelement('a', array('href' => "$certpath.jpg", 'target' => '_blank'), $cell);
+        $code = self::xelement('img', array('src' => "$certuri.thumb.jpg"));
+        $code = self::xelement('a', array('href' => "$certuri.jpg", 'target' => '_blank'), $code);
         $testhref = Title::newFromText('Special:MediawikiQuizzer/'.$test['test_id']);
         $testtry = wfMsg('mwquizzer-try', $test['test_name']);
-        $code .= "\n" . self::xelement('a', array('href' => $testhref, 'target' => '_blank'), $testtry);
+        $code .= "<br />" . self::xelement('a', array('href' => $testhref, 'target' => '_blank'), $testtry);
 
         $html = self::xelement('table', NULL, self::xelement('tr', NULL,
-            self::xelement('td', NULL, $code) .
-            self::xelement('td', NULL, wfMsg('mwquizzer-congratulations') . self::xelement('pre', NULL, $code))
+            self::xelement('td', array('class' => 'mwq-congrats'), $code) .
+            self::xelement('td', array('class' => 'mwq-congrats-src'), wfMsg('mwquizzer-congratulations') . self::xelement('pre', array('style' => 'white-space: normal'), htmlspecialchars($code)))
         ));
 
         return $html;
