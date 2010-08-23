@@ -1348,7 +1348,7 @@ EOT;
     /* Generate a completion certificate and get HTML code for the certificate */
     function getCertificateHtml($ticket, $test, $testresult)
     {
-        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri;
+        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
