@@ -506,6 +506,7 @@ class MediawikiQuizzerUpdater
     {
         $html = self::parse($article, $text);
         $quiz = self::parseQuiz2($html);
+        $quiz['test_log'] = "[INFO] Article revision: ".$article->getLatest()."\n".$quiz['test_log'];
         $quiz['test_id'] = mb_substr($article->getTitle()->getText(), 0, 32);
         if (!$quiz['questions'])
             return;

@@ -31,3 +31,5 @@ def printquestions(questions):
           sys.stdout.write("* ")
         sys.stdout.write(c[1]+"\n")
       sys.stdout.write("\n")
+    if 'reason' in q and q['reason'].strip() != '':
+      sys.stdout.write("=== Объяснение ===\n\n"+q['reason'].strip()+"\n\n")
