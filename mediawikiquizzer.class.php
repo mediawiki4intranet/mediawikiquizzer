@@ -257,6 +257,11 @@ class MediawikiQuizzerUpdater
                        and append element itself */
                     $append[0] = substr($append[0], 0, $l) . $document->saveXML($p);
                 }
+                elseif ($h && $stack)
+                {
+                    /* Propagate "Already processed" value */
+                    $stack[count($stack)-1][2] = true;
+                }
                 continue;
             }
             $stack[count($stack)-1][1]++;
