@@ -584,6 +584,9 @@ class MediawikiQuizzerUpdater
 
 class MediawikiQuizzerPage extends SpecialPage
 {
+    /* Default OK% */
+    const DEFAULT_OK_PERCENT = 80;
+
     /* Display parse log for quiz article */
     static function showParseLog($test_id)
     {
@@ -834,6 +837,10 @@ class MediawikiQuizzerPage extends SpecialPage
             // maximum total score
             $test['max_score'] += $q['score_correct'];
         }
+
+        // default OK%
+        if ($test['ok_percent'] <= 0)
+            $test['ok_percent'] = self::DEFAULT_OK_PERCENT;
 
         return $test;
     }
