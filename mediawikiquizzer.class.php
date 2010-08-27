@@ -838,6 +838,8 @@ class MediawikiQuizzerPage extends SpecialPage
             $test['max_score'] += $q['score_correct'];
         }
 
+        $test['test_name'] = html_entity_decode($test['test_name']);
+
         // default OK%
         if ($test['ok_percent'] <= 0)
             $test['ok_percent'] = self::DEFAULT_OK_PERCENT;
