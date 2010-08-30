@@ -2,9 +2,11 @@
 
 /* Maintenance script for re-parsing quizzes after extension update. */
 
+chdir(dirname(__FILE__).'/../../');
+
 $options = array('quick');
-require_once(dirname(__FILE__).'/../../maintenance/commandLine.inc');
-require_once(dirname(__FILE__).'/../../maintenance/counter.php');
+require_once('maintenance/commandLine.inc');
+require_once('maintenance/counter.php');
 
 if (!defined('NS_QUIZ'))
     die("MediaWikiQuizzer is disabled on this wiki.");
@@ -32,9 +34,11 @@ while ($row = $dbw->fetchRow($result))
     $titles[] = Title::newFromId($row[0]);
 $dbw->freeResult($result);
 
+$wgUser = User::newFromName('WikiSysop');
 $wgLang->fixUpSettings();
 foreach ($titles as $t)
 {
+    $wgTitle = $t;
     print $t->getPrefixedText()."...\n";
     if ($a = new Article($t))
         $a->doEdit($a->getContent(), 'Re-parse MWQuizzer quiz', EDIT_FORCE_BOT);

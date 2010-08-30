@@ -40,6 +40,7 @@ class MediawikiQuizzerUpdater
             $mag->matchAndRemove($text);
         MagicWord::get('toc')->matchAndRemove($text);
         MagicWord::get('forcetoc')->matchAndRemove($text);
+        MagicWord::get('noeditsection')->matchAndRemove($text);
         $options = clone $wgParser->mOptions;
         $options->mNumberHeadings = false;
         $options->mEditSection = true;
@@ -785,15 +786,38 @@ class MediawikiQuizzerPage extends SpecialPage
             $variant = @unserialize($variant);
             if (!is_array($variant))
                 $variant = NULL;
+            else
+            {
+                $qhashes = array();
+                foreach ($variant as $q)
+                    $qhashes[] = $q[0];
+            }
         }
 
+        $tables = array('mwq_question', 'mwq_choice_stats', 'mwq_question_test');
+        $joins = array(
+            'mwq_choice_stats' => array('LEFT JOIN', array('cs_question_hash=qn_hash')),
+            'mwq_question_test' => array('INNER JOIN', array('qt_question_hash=qn_hash')),
+        );
+        $where = array();
+        if ($variant)
+        {
+            /* Select questions with known hashes for loading a specific variant.
+               This is needed because quiz set of questions can change over time,
+               but we want to always display the known variant. */
+            $where['qn_hash'] = $qhashes;
+            $joins['mwq_question_test'][0] = 'LEFT JOIN';
+        }
+        else
+            $where['qt_test_id'] = $id;
+
         $result = $dbr->select(
-            array('mwq_question', 'mwq_question_test', 'mwq_choice_stats'),
+            $tables,
             'mwq_question.*, COUNT(cs_correct) tries, SUM(cs_correct) correct_tries',
-            array('qt_test_id' => $id),
+            $where,
             __METHOD__,
             array('GROUP BY' => 'qn_hash', 'ORDER BY' => 'qt_num'),
-            array('mwq_choice_stats' => array('LEFT JOIN', array('cs_question_hash=qn_hash')), 'mwq_question_test' => array('INNER JOIN', array('qt_question_hash=qn_hash')))
+            $joins
         );
         if ($dbr->numRows($result) <= 0)
             return NULL;
