@@ -221,6 +221,28 @@ class MediawikiQuizzerUpdater
         return trim(str_replace("\n", " ", strip_tags($s)));
     }
 
+    /* Check last question for correctness */
+    static function checkLastQuestion(&$questions, &$log)
+    {
+        $lq = $questions[count($questions)-1];
+        $ncorrect = 0;
+        $ok = false;
+        if ($lq['choices'])
+            foreach ($lq['choices'] as $lc)
+                if ($lc['ch_correct'])
+                    $ncorrect++;
+        if ($lq['choices'] || !count($lq['choices']))
+            $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
+        elseif ($ncorrect >= $lq['choices'])
+            $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
+        elseif (!$ncorrect)
+            $log .= "[ERROR] No correct choices for question: ".self::textlog($lq['qn_text'])."\n";
+        else
+            $ok = true;
+        if (!$ok)
+            array_pop($questions);
+    }
+
     /* states: */
     const ST_OUTER = 0;     /* Outside everything */
     const ST_QUESTION = 1;  /* Inside question */
@@ -293,20 +315,7 @@ class MediawikiQuizzerUpdater
                         if ($chk[1][0][0])
                         {
                             if ($q)
-                            {
-                                /* Check previous question for correctness */
-                                $lq = $q[count($q)-1];
-                                $ncorrect = 0;
-                                foreach ($lq['choices'] as $lc)
-                                    if ($lc['ch_correct'])
-                                        $ncorrect++;
-                                if (!count($lq['choices']))
-                                    $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
-                                elseif ($ncorrect >= $lq['choices'])
-                                    $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
-                                elseif (!$ncorrect)
-                                    $log .= "[ERROR] No correct choices for question: ".self::textlog($lq['qn_text'])."\n";
-                            }
+                                self::checkLastQuestion($q, $log);
                             /* Question section - found */
                             $log .= "[INFO] Begin question section: $log_el\n";
                             $st = self::ST_QUESTION;
@@ -519,6 +528,8 @@ class MediawikiQuizzerUpdater
                     $stack[count($stack)-1][2] = true;
             }
         }
+        if ($q)
+            self::checkLastQuestion($q, $log);
         $quiz['questions'] = $q;
         $quiz['test_log'] = $log;
         return $quiz;
