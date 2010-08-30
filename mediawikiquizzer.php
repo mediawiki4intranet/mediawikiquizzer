@@ -77,13 +77,13 @@ class MediawikiQuizzer
         $wgExtraNamespaces[NS_QUIZ_TALK] = $wgCanonicalNamespaceNames[NS_QUIZ_TALK] = 'Quiz_talk';
         $wgNamespaceAliases['Quiz'] = NS_QUIZ;
         $wgNamespaceAliases['Quiz_talk'] = NS_QUIZ_TALK;
-        $wgParser->setHook('quiz', 'MediawikiQuizzer::quiz_actions');
     }
 
     static function LoadExtensionSchemaUpdates()
     {
-        global $wgExtNewTables;
+        global $wgExtNewTables, $wgExtNewFields;
         $wgExtNewTables[] = array('mwq_test', dirname(__FILE__).'/mwquizzer-tables.sql');
+        $wgExtNewFields[] = array('mwq_question', 'qn_anchor', dirname(__FILE__).'/patch-question-anchor.sql');
         return true;
     }
 
@@ -98,25 +98,7 @@ class MediawikiQuizzer
     {
         global $wgOut;
         if (self::isQuiz($t = $article->getTitle()))
-            MediawikiQuizzerPage::showParseLog($t->getText());
+            MediawikiQuizzerPage::quizArticleInfo($t->getText());
         return true;
-    }
-
-    static function quiz_actions($content, $attr, $parser)
-    {
-        if (self::isQuiz($t = $parser->getTitle()))
-        {
-            wfLoadExtensionMessages('MediawikiQuizzer');
-            $s = Title::newFromText('Special:MediawikiQuizzer');
-            if (preg_match('/;\s*(Name|Title|Название)\s*:\s*([^\n]*)/is', $content, $m))
-                $name = $m[2];
-            $name = trim(strip_tags($parser->parse($name, $t, $parser->mOptions, false, false)->getText()));
-            $r = wfMsg('mwquizzer-actions', $name,
-                $s->getFullUrl(array('id' => $t->getText())),
-                $s->getFullUrl(array('id' => $t->getText(), 'mode' => 'export'))
-            );
-        }
-        $r = $parser->parse($content, $t, $parser->mOptions, false, false)->getText() . $r;
-        return $r;
     }
 }

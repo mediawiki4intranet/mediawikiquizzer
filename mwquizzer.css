@@ -17,3 +17,9 @@
 .mwq-log-warn { color: black; background-color: #ffff00; }
 .mwq-log-info { color: #008000; }
 .mwq-congrats { text-align: center; }
+.mwq-review { border-collapse: collapse; }
+.mwq-review td, .mwq-review th { border: 1px solid black; padding: 2px; }
+.mwq-review th { background-color: #D0D0D0; text-align: left; white-space: nowrap; }
+.mwq-select-tickets { margin: 12px 0; }
+.mwq-select-tickets input { margin: 1px 0; }
+.mwq-dead { color: red; }

@@ -43,6 +43,10 @@ CREATE TABLE /*$wgDBPrefix*/mwq_question (
   qn_explanation blob default NULL,
   -- arbitrary label to classify questions
   qn_label varbinary(255) default NULL,
+  -- HTML anchor of question section inside article
+  qn_anchor varbinary(255) NOT NULL default '',
+  -- extracted HTML code with edit question section link
+  qn_editsection blob default NULL,
   PRIMARY KEY (qn_hash)
 ) /*$wgDBTableOptions*/;
 
