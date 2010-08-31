@@ -612,15 +612,24 @@ class MediawikiQuizzerPage extends SpecialPage
             return;
         }
 
+        /* Allow viewing ticket variant with specified key for print mode */
+        $variant = NULL;
+        if ($args['ticket_id'] && $args['ticket_key'] && $mode == 'print' &&
+            ($ticket = self::loadTicket($args['ticket_id'], $args['ticket_key'])))
+        {
+            $id = $ticket['tk_test_id'];
+            $variant = $ticket['tk_variant'];
+        }
+
+        /* Raise error when no test is specified for mode=print or mode=show */
         if (!$id)
         {
             $wgOut->showErrorPage('mwquizzer-no-test-id-title', 'mwquizzer-no-test-id-text');
             return;
         }
 
-        /* Load random test variant.
-           Allow loading specific test variant for admins. */
-        $test = self::loadTest($id, $is_adm ? $args['variant'] : NULL);
+        /* Load random or specific test variant */
+        $test = self::loadTest($id, $variant);
         if (!$test)
         {
             $wgOut->showErrorPage('mwquizzer-test-not-found-title', 'mwquizzer-test-not-found-text');
@@ -1602,13 +1611,14 @@ EOT;
                 $tr[] = self::xelement('s', array('class' => 'mwq-dead'), $t['tk_test_id']);
             /* 3. Variant CRC32 + link to printable version of this variant */
             $a = sprintf("%u", crc32($t['tk_variant']));
-            $a = self::xelement('a', array('href' => "javascript:document.getElementById('mwq-print-$i').submit()"), $a);
-            $a .= Xml::hidden('variant', $t['tk_variant']);
-            $a = self::xelement('form', array(
-                'method' => 'POST',
-                'action' => $wgTitle->getFullUrl(array('mode' => 'print', 'id' => $t['tk_test_id'], 'edit' => 1)),
-                'id' => "mwq-print-$i"
-            ), $a);
+            $href = $wgTitle->getFullUrl(array(
+                'mode'       => 'print',
+                'id'         => $t['tk_test_id'],
+                'edit'       => 1,
+                'ticket_id'  => $t['tk_id'],
+                'ticket_key' => $t['tk_key'],
+            ));
+            $a = self::xelement('a', array('href' => $href), $a);
             $tr[] = $a;
             /* 4. User link and/or name/displayname */
             if ($t['tk_user_id'])
