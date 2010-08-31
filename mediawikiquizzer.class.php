@@ -1039,7 +1039,7 @@ EOT;
         if ($test['test_intro'])
             $ti = self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']) . $ti;
 
-        /* Display question list */
+        /* Display question list (with editsection links for admins) */
         $html .= self::xelement('h2', array('style' => 'page-break-before: always'), wfMsg('mwquizzer-question-sheet'));
         $html .= $ti;
         $html .= $this->getQuestionList($test['questions'], false, $args['edit'] && $is_adm);
