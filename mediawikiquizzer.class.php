@@ -67,131 +67,6 @@ class MediawikiQuizzerUpdater
         self::$regexps = array($test_regexp, $test_regexp_nq, $qn_regexp);
     }
 
-    /* Parse extracted question section */
-    static function parseQuestion($q)
-    {
-        $question = array('choices' => array());
-        $question['qn_label'] = DOMParseUtils::saveChildren($q['title'], true);
-        $subsect = DOMParseUtils::getSections($q['content'], self::$regexps[2], true, NULL, true);
-        $sect0 = array_shift($subsect);
-        $question['qn_text'] = trim(DOMParseUtils::saveChildren($sect0['content']));
-        foreach ($subsect as $ss)
-        {
-            foreach ($ss['match'] as $i => $v)
-            {
-                if ($v[0])
-                {
-                    $field = self::$qn_keys[$i];
-                    break;
-                }
-            }
-            if (!$field)
-                die(__METHOD__.": Mystical bug detected, this should never happen");
-            if ($field == 'comments')
-            {
-                /* Comments to question are skipped */
-            }
-            elseif ($field == 'explanation' || $field == 'label')
-            {
-                /* Explanation and label are of HTML type */
-                $question["qn_$field"] = trim(DOMParseUtils::saveChildren($ss['content']));
-            }
-            else
-            {
-                /* Some kind of choice(s) section */
-                $e = $ss['content'];
-                $correct = ($field == 'correct' || $field == 'corrects') ? 1 : 0;
-                if ($field == 'choice' || $field == 'correct')
-                {
-                    /* Section with a single choice */
-                    if ($e->childNodes->length)
-                    {
-                        /* Allow single <ul> or <ol> item with single <li> inside */
-                        $e1 = $e->childNodes->item(0);
-                        $n = strtolower($e1->nodeName);
-                        if (($n == 'ul' || $n == 'ol') && $e1->childNodes->length == 1)
-                        {
-                            $e2 = $e1->childNodes->item(0);
-                            if (strtolower($e2->nodeName) == 'li')
-                                $e = $e2;
-                        }
-                    }
-                    $choices = array($e);
-                }
-                else
-                {
-                    /* Section with multiple choices */
-                    $choices = DOMParseUtils::getListItems($ss['content']);
-                }
-                foreach ($choices as $e)
-                {
-                    /* Allow optional "Correct choice: " at the beginning of the choice */
-                    $checked = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
-                    $c = $correct;
-                    if ($checked)
-                    {
-                        $e = $checked[0];
-                        $c = 1;
-                    }
-                    $question['choices'][] = array(
-                        'ch_text'    => trim(DOMParseUtils::saveChildren($e, true)),
-                        'ch_correct' => $c,
-                    );
-                }
-            }
-        }
-        return $question;
-    }
-
-    /* Parse extracted quiz parameter section */
-    static function parseQuizField($q)
-    {
-        foreach ($q['match'] as $i => $v)
-        {
-            if ($v[0])
-            {
-                $field = self::$test_keys[$i-1];
-                break;
-            }
-        }
-        if (!$field)
-            die(__METHOD__.": Mystical bug detected, this should never happen");
-        $value = DOMParseUtils::saveChildren($q['content'], true);
-        return array("test_$field", self::transformFieldValue($field, $value));
-    }
-
-    /* Extract MediawikiQuizzer questions, choices and quiz parameters from HTML code given in $html */
-    static function parseQuiz($html)
-    {
-        self::getRegexps();
-        $test = array();
-        $document = DOMParseUtils::loadDOM($html);
-        /* match headings */
-        $sections = DOMParseUtils::getSections($document->documentElement, self::$regexps[0], true, NULL, true);
-        $section0 = array_shift($sections);
-        if ($section0['content'])
-        {
-            /* parse section 0 */
-            $s0 = DOMParseUtils::getSections($section0['content'], self::$regexps[1], true, array('dt' => 1), false);
-            $sections = array_merge($s0, $sections);
-        }
-        foreach ($sections as $q)
-        {
-            if ($q['match'][0][0])
-            {
-                /* A question */
-                $test['questions'][] = self::parseQuestion($q);
-            }
-            else
-            {
-                /* Quiz parameter */
-                list($key, $value) = self::parseQuizField($q);
-                $test[$key] = $value;
-            }
-        }
-        return $test;
-    }
-
     /* Transform quiz field value according to its type */
     static function transformFieldValue($field, $value)
     {
@@ -232,7 +107,7 @@ class MediawikiQuizzerUpdater
             foreach ($lq['choices'] as $lc)
                 if ($lc['ch_correct'])
                     $ncorrect++;
-        if ($lq['choices'] || !count($lq['choices']))
+        if (!$lq['choices'] || !count($lq['choices']))
             $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
         elseif ($ncorrect >= $lq['choices'])
             $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
@@ -296,7 +171,6 @@ class MediawikiQuizzerUpdater
                 {
                     $level = $m[1];
                     $log_el = str_repeat('=', $level);
-                    $log_el = $log_el . self::textlog($e) . $log_el;
                     /* Remove editsection links */
                     $editsection = NULL;
                     if ($e->childNodes->length)
@@ -308,6 +182,7 @@ class MediawikiQuizzerUpdater
                             $editsection = $document->saveXML($span);
                         }
                     }
+                    $log_el = $log_el . self::textlog($e) . $log_el;
                     /* Match question/parameter section title */
                     $chk = DOMParseUtils::checkNode($e, self::$regexps[0], true);
                     if ($chk)
@@ -528,6 +403,8 @@ class MediawikiQuizzerUpdater
                 else
                     $stack[count($stack)-1][2] = true;
             }
+            elseif ($append && $e->nodeType == XML_TEXT_NODE && trim($e->nodeValue))
+                $append[0] .= $e->nodeValue;
         }
         if ($q)
             self::checkLastQuestion($q, $log);
@@ -710,8 +587,14 @@ class MediawikiQuizzerPage extends SpecialPage
         $is_adm = MediawikiQuizzer::isTestAdmin();
         $mode = $args['mode'];
 
+        $id = $par;
+        if (!$id)
+            $id = $args['id'];
+        if (!$id)
+            $id = $args['id_test']; // backward compatibility
+
         if (!self::$modes[$mode])
-            $mode = $is_adm ? 'review' : 'show';
+            $mode = $is_adm && !$id ? 'review' : 'show';
 
         if ($mode == 'check')
         {
@@ -728,12 +611,6 @@ class MediawikiQuizzerPage extends SpecialPage
                 $wgOut->showErrorPage('mwquizzer-review-denied-title', 'mwquizzer-review-denied-text');
             return;
         }
-
-        $id = $par;
-        if (!$id)
-            $id = $args['id'];
-        if (!$id)
-            $id = $args['id_test']; // backward compatibility
 
         if (!$id)
         {
@@ -754,6 +631,54 @@ class MediawikiQuizzerPage extends SpecialPage
             $this->printTest($test, $args);
         else
             $this->showTest($test, $args);
+    }
+
+    /* Question must have at least 1 correct and 1 incorrect choice */
+    static function finalizeQuestionRow(&$q, $var, $shuffle)
+    {
+        $hash = $q['qn_hash'];
+        if (!$var && !count($q['choices']))
+        {
+            /* No choices defined for this question, skip it */
+            wfDebug(__CLASS__.": Skipping $hash, no choices!\n");
+        }
+        elseif (!$var && $q['correct_count'] <= 0)
+        {
+            /* No correct choices defined for this question, skip it */
+            wfDebug(__CLASS__.": Skipping $hash, no correct choices!\n");
+        }
+        elseif (!$var && $q['correct_count'] >= count($q['choices']))
+        {
+            /* All choices for this question are defined as correct, skip it */
+            wfDebug(__CLASS__.": Skipping $hash, all choices defined as correct!\n");
+        }
+        else
+        {
+            if ($q['ch_order'])
+            {
+                /* Reorder choices according to saved variant */
+                $nc = array();
+                foreach ($q['ch_order'] as $num)
+                    $nc[] = &$q['choiceByNum'][$num];
+                $q['choices'] = $nc;
+                unset($q['ch_order']);
+            }
+            elseif ($shuffle)
+            {
+                /* Or else optionally shuffle choices */
+                shuffle($q['choices']);
+            }
+            /* Calculate scores */
+            if ($q['correct_count'])
+            {
+                // add 1/n for correct answers
+                $q['score_correct'] = 1;
+                // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
+                $q['score_incorrect'] = -$q['correct_count'] / (count($q['choices']) - $q['correct_count']);
+            }
+            return true;
+        }
+        return false;
     }
 
     /* Load a test from database. Optionally shuffle/limit questions and answers,
@@ -794,12 +719,15 @@ class MediawikiQuizzerPage extends SpecialPage
             }
         }
 
+        $fields = 'mwq_question.*, IFNULL(COUNT(cs_correct),0) tries, IFNULL(SUM(cs_correct),0) correct_tries';
         $tables = array('mwq_question', 'mwq_choice_stats', 'mwq_question_test');
+        $where = array();
+        $options = array('GROUP BY' => 'qn_hash', 'ORDER BY' => 'qt_num');
         $joins = array(
             'mwq_choice_stats' => array('LEFT JOIN', array('cs_question_hash=qn_hash')),
-            'mwq_question_test' => array('INNER JOIN', array('qt_question_hash=qn_hash')),
+            'mwq_question_test' => array('INNER JOIN', array('qt_question_hash=qn_hash', 'qt_test_id' => $id)),
         );
-        $where = array();
+
         if ($variant)
         {
             /* Select questions with known hashes for loading a specific variant.
@@ -808,117 +736,95 @@ class MediawikiQuizzerPage extends SpecialPage
             $where['qn_hash'] = $qhashes;
             $joins['mwq_question_test'][0] = 'LEFT JOIN';
         }
-        else
-            $where['qt_test_id'] = $id;
 
-        $result = $dbr->select(
-            $tables,
-            'mwq_question.*, COUNT(cs_correct) tries, SUM(cs_correct) correct_tries',
-            $where,
-            __METHOD__,
-            array('GROUP BY' => 'qn_hash', 'ORDER BY' => 'qt_num'),
-            $joins
-        );
+        /* Read questions: */
+        $result = $dbr->select($tables, $fields, $where, __METHOD__, $options, $joins);
         if ($dbr->numRows($result) <= 0)
             return NULL;
 
-        $test['questions'] = array();
+        $rows = array();
         while ($q = $dbr->fetchRow($result))
         {
-            if (!$variant &&
-                $test['test_autofilter_min_tries'] > 0 && $q['tries'] >= $test['test_autofilter_min_tries'] &&
+            if (!$q['correct_tries'])
+                $q['correct_tries'] = 0;
+            if (!$q['tries'])
+                $q['tries'] = 0;
+
+            if (!$variant && $test['test_autofilter_min_tries'] > 0 &&
+                $q['tries'] >= $test['test_autofilter_min_tries'] &&
                 $q['correct_tries']/$q['tries'] >= $test['test_autofilter_correct_percent']/100.0)
             {
                 /* Statistics tells us this question is too simple, skip it */
                 wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].', because correct percent = '.$q['correct_tries'].'/'.$q['tries'].' >= '.$test['test_autofilter_correct_percent']."%\n");
                 continue;
             }
-
-            $result2 = $dbr->select('mwq_choice', '*', array('ch_question_hash' => $q['qn_hash']), __METHOD__, array('ORDER BY' => 'ch_num'));
-            if (!$variant && $dbr->numRows($result2) <= 0)
-            {
-                /* No choices defined for this question, skip it */
-                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].", no choices!\n");
-                continue;
-            }
-
             $q['choices'] = array();
             $q['correct_count'] = 0;
-            while ($choice = $dbr->fetchRow($result2))
-            {
-                if ($choice['ch_correct'])
-                    $q['correct_count']++;
-                $q['choiceByNum'][$choice['ch_num']] = $choice;
-                $q['choices'][] = &$q['choiceByNum'][$choice['ch_num']];
-            }
-            $dbr->freeResult($result2);
-
-            if (!$variant && $q['correct_count'] <= 0)
-            {
-                /* No correct choices defined for this question, skip it */
-                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].", no correct choices!\n");
-                continue;
-            }
-            elseif (!$variant && $q['correct_count'] >= count($q['choices']))
-            {
-                /* All choices for this question are defined as correct, skip it */
-                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].", all choices defined as correct!\n");
-                continue;
-            }
-
-            // optionally shuffle choices
-            if (!$variant && $test['test_shuffle_choices'])
-                shuffle($q['choices']);
-
-            // build an array of correct choices
-            $q['correct_choices'] = array();
-            $i = 0;
-            foreach ($q['choices'] as $choice)
-            {
-                if ($choice['ch_correct'])
-                {
-                    $choice['index'] = $i+1;
-                    $q['correct_choices'][] = $choice;
-                }
-                $i++;
-            }
-
-            if ($q['correct_count'])
-            {
-                // add 1/n for correct answers
-                $q['score_correct'] = 1;
-                // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
-                $q['score_incorrect'] = -$q['correct_count'] / (count($q['choices']) - $q['correct_count']);
-            }
-
-            $test['questionByHash'][$q['qn_hash']] = $q;
-            $test['questions'][] = &$test['questionByHash'][$q['qn_hash']];
+            $rows[$q['qn_hash']] = $q;
         }
+
+        /* Optionally shuffle and limit questions */
+        if (!$variant && ($test['test_shuffle_questions'] || $test['test_limit_questions']))
+        {
+            $new = $rows;
+            if ($test['test_shuffle_questions'])
+                shuffle($new);
+            if ($test['test_limit_questions'])
+                array_splice($new, $test['test_limit_questions']);
+            $rows = array();
+            foreach ($new as $q)
+                $rows[$q['qn_hash']] = $q;
+        }
+        elseif ($variant)
+        {
+            $new = array();
+            foreach ($variant as $q)
+            {
+                if ($rows[$q[0]])
+                {
+                    $rows[$q[0]]['ch_order'] = $q[1];
+                    $new[$q[0]] = &$rows[$q[0]];
+                }
+            }
+            $rows = $new;
+        }
+
+        /* Read choices: */
+        $result = $dbr->select(
+            'mwq_choice', '*', array('ch_question_hash' => array_keys($rows)),
+            __METHOD__, array('ORDER BY' => 'ch_question_hash, ch_num')
+        );
+        $q = NULL;
+        while ($choice = $dbr->fetchRow($result))
+        {
+            if (!$q)
+                $q = &$rows[$choice['ch_question_hash']];
+            elseif ($q['qn_hash'] != $choice['ch_question_hash'])
+            {
+                if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
+                    unset($rows[$q['qn_hash']]);
+                $q = &$rows[$choice['ch_question_hash']];
+            }
+            $q['choiceByNum'][$choice['ch_num']] = $choice;
+            $q['choices'][] = &$q['choiceByNum'][$choice['ch_num']];
+            if ($choice['ch_correct'])
+            {
+                $q['correct_count']++;
+                $q['choiceByNum'][$choice['ch_num']]['index'] = count($q['choices']);
+                $q['correct_choices'][] = &$q['choiceByNum'][$choice['ch_num']];
+            }
+        }
+        if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
+            unset($rows[$q['qn_hash']]);
+        unset($q);
         $dbr->freeResult($result);
 
-        // optionally shuffle and limit questions
-        if (!$variant && $test['test_shuffle_questions'])
-            shuffle($test['questions']);
-        if (!$variant && $test['test_limit_questions'])
-            array_splice($test['questions'], $test['test_limit_questions']);
-
-        // When a valid variant ID is passed to this function, no randomness is allowed.
-        // Exactly the selected variant is loaded.
-        if ($variant)
+        /* Finally, build question array for the test */
+        $test['questions'] = array();
+        foreach ($rows as $q)
         {
-            $nt = array();
-            foreach($variant as $q)
-            {
-                $nq = $test['questionByHash'][$q[0]];
-                if (!$nq)
-                    continue;
-                $nc = array();
-                foreach ($q[1] as $num)
-                    $nc[] = $nq['choiceByNum'][$num];
-                $nq['choices'] = $nc;
-                $nt[] = $nq;
-            }
-            $test['questions'] = $nt;
+            $test['questionByHash'][$q['qn_hash']] = $q;
+            $test['questions'][] = &$test['questionByHash'][$q['qn_hash']];
         }
 
         // a variant ID is computed using hashes of selected questions and sequences of their answers
@@ -1292,39 +1198,44 @@ EOT;
     /* Build email text */
     function buildMailText($ticket, $test, $testresult)
     {
-        $msg_q = wfMsg('mwquizzer-question');
         $msg_r = wfMsg('mwquizzer-right-answer');
         $msg_y = wfMsg('mwquizzer-your-answer');
         $text = '';
-        foreach ($test['questions'] as $q)
+        foreach ($test['questions'] as $i => $q)
         {
+            $msg_q = wfMsg('mwquizzer-question', $i+1);
             $num = $testresult['answers'][$q['qn_hash']];
             if (!$num || !$q['choiceByNum'][$num]['ch_correct'])
             {
                 $qn_text = trim(strip_tags($q['qn_text']));
-                $qn_correct = trim(strip_tags($q['correct_choices'][0]['ch_text']));
-                $qn_user = $num ? trim(strip_tags($q['choiceByNum'][$num]['ch_text'])) : '';
+                $ch_correct = trim(strip_tags($q['correct_choices'][0]['ch_text']));
                 /* TODO (?) format this as HTML and send HTML emails */
-                $lab = $q['qn_label'];
+                $lab = trim(strip_tags($q['qn_label']));
                 if ($lab)
                     $lab .= ' | ';
+                if ($num)
+                {
+                    $ch_user = trim(strip_tags($q['choiceByNum'][$num]['ch_text']));
+                    $ch_user = "--------------------------------------------------------------------------------\n$msg_y: [№$num] $ch_user\n";
+                }
+                else
+                    $ch_user = '';
                 $text .= <<<EOT
 ================================================================================
-$msg_q $q[qt_num] | $lab$q[correct_tries]/$q[tries]
+$msg_q | $lab$q[correct_tries]/$q[tries]
 --------------------------------------------------------------------------------
 $qn_text
 
 $msg_r
-$qn_correct
---------------------------------------------------------------------------------
-$msg_y: [№$num] $qn_user
-≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈
+$ch_correct
+$ch_user≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈
 EOT;
             }
         }
         /* TODO (?) format this as HTML and send HTML emails */
         $values = array(
             array('quiz',           "$test[test_name] /* Id: $test[test_id] */"),
+            array('variant',        $test['variant_hash_crc32']),
             array('who',            $ticket['tk_displayname'] ? $ticket['tk_displayname'] : $ticket['tk_user_text']),
             array('user',           $ticket['tk_user_text']),
             array('start',          $ticket['tk_start_time']),
