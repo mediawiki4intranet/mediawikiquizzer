@@ -96,6 +96,16 @@ CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
   tk_test_id varchar(32) NOT NULL,
   -- variant
   tk_variant blob NOT NULL,
+  -- score
+  tk_score float DEFAULT NULL,
+  -- score %
+  tk_score_percent DECIMAL(4,1) DEFAULT NULL,
+  -- correct answers count
+  tk_correct int DEFAULT NULL,
+  -- correct answers %
+  tk_correct_percent DECIMAL(4,1) DEFAULT NULL,
+  -- passed or no?
+  tk_pass tinyint(1) DEFAULT NULL,
   PRIMARY KEY (tk_id),
   FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON UPDATE CASCADE,
   FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE

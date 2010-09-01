@@ -84,6 +84,7 @@ class MediawikiQuizzer
         global $wgExtNewTables, $wgExtNewFields;
         $wgExtNewTables[] = array('mwq_test', dirname(__FILE__).'/mwquizzer-tables.sql');
         $wgExtNewFields[] = array('mwq_question', 'qn_anchor', dirname(__FILE__).'/patch-question-anchor.sql');
+        $wgExtNewFields[] = array('mwq_ticket', 'tk_score', dirname(__FILE__).'/patch-ticket-score.sql');
         return true;
     }
 

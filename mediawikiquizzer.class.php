@@ -1143,9 +1143,23 @@ EOT;
         return $answers;
     }
 
+    /* Calculate scores based on $testresult['answers'] ($hash => $num) */
+    function calculateScores(&$testresult, &$test)
+    {
+        foreach ($testresult['answers'] as $hash => $n)
+        {
+            $c = $test['questionByHash'][$hash]['choiceByNum'][$n]['ch_correct'] ? 1 : 0;
+            $testresult['correct_count'] += $c;
+            $testresult['score'] += $test['questionByHash'][$hash][$c ? 'score_correct' : 'score_incorrect'];
+        }
+        $testresult['correct_percent'] = round($testresult['correct_count']/count($test['questions'])*100, 1);
+        $testresult['score_percent'] = round($testresult['score']/$test['max_score']*100, 1);
+        $testresult['passed'] = $testresult['score_percent'] >= $test['test_ok_percent'];
+    }
+
     /* Either check an unchecked ticket, or load results from the database
        if the ticket is already checked */
-    function checkOrLoadResult(&$ticket, $test, $args)
+    static function checkOrLoadResult(&$ticket, $test, $args)
     {
         global $wgUser;
         $testresult = array(
@@ -1153,59 +1167,77 @@ EOT;
             'score'         => 0,
         );
 
-        $sendmail = false;
+        $updated = false;
         if ($ticket['tk_end_time'])
         {
             /* Ticket already checked, load answers from database */
-            $testresult['answers'] = $this->loadAnswers($ticket['tk_id']);
+            $testresult['answers'] = self::loadAnswers($ticket['tk_id']);
             $testresult['seen'] = true;
         }
         else
         {
             /* Else check POSTed answers */
-            $testresult['answers'] = $this->checkAnswers($test, $ticket);
+            $testresult['answers'] = self::checkAnswers($test, $ticket);
+            /* Need to send mail and update ticket in the DB */
+            $updated = true;
+        }
+
+        /* Calculate scores */
+        self::calculateScores($testresult, $test);
+
+        if ($updated)
+        {
             /* Update ticket */
             $userid = $wgUser->getId();
             if (!$userid)
                 $userid = NULL;
             $update = array(
-                'tk_end_time'    => wfTimestampNow(TS_MW),
-                'tk_displayname' => $args['prompt'],
-                'tk_user_id'     => $userid,
-                'tk_user_text'   => $wgUser->getName(),
-                'tk_user_ip'     => wfGetIP(),
+                'tk_end_time'        => wfTimestampNow(TS_MW),
+                'tk_displayname'     => $args['prompt'],
+                'tk_user_id'         => $userid,
+                'tk_user_text'       => $wgUser->getName(),
+                'tk_user_ip'         => wfGetIP(),
+                /* Testing result to be shown in the table.
+                   Nothing relies on these values. */
+                'tk_score'           => $testresult['score'],
+                'tk_score_percent'   => $testresult['score_percent'],
+                'tk_correct'         => $testresult['correct_count'],
+                'tk_correct_percent' => $testresult['correct_percent'],
+                'tk_pass'            => $testresult['passed'] ? 1 : 0,
             );
             $ticket = array_merge($ticket, $update);
             $dbw = wfGetDB(DB_MASTER);
             $dbw->update('mwq_ticket', $update, array('tk_id' => $ticket['tk_id']), __METHOD__);
-            /* Need to send mail */
-            $sendmail = true;
-        }
-
-        /* Calculate scores */
-        foreach ($testresult['answers'] as $hash => $n)
-        {
-            $c = $test['questionByHash'][$hash]['choiceByNum'][$n]['ch_correct'] ? 1 : 0;
-            $testresult['correct_count'] += $c;
-            $testresult['score'] += $test['questionByHash'][$hash][$c ? 'score_correct' : 'score_incorrect'];
-        }
-
-        $testresult['correct_percent'] = round($testresult['correct_count']/count($test['questions'])*100, 1);
-        $testresult['score_percent'] = round($testresult['score']/$test['max_score']*100, 1);
-        if ($testresult['score_percent'] >= $test['test_ok_percent'])
-            $testresult['passed'] = true;
-
-        if ($sendmail)
-        {
             /* Send mail with test results to administrator(s) */
-            $this->sendMail($ticket, $test, $testresult);
+            self::sendMail($ticket, $test, $testresult);
         }
 
         return $testresult;
     }
 
+    /* Recalculate scores for a completed ticket */
+    static function recalcTicket(&$ticket)
+    {
+        if ($ticket['tk_end_time'] === NULL)
+            return;
+        $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
+        $testresult = self::checkOrLoadResult($ticket, $test, $args);
+        $update = array(
+            /* Testing result to be shown in the table.
+               Nothing relies on these values. */
+            'tk_score'           => $testresult['score'],
+            'tk_score_percent'   => $testresult['score_percent'],
+            'tk_correct'         => $testresult['correct_count'],
+            'tk_correct_percent' => $testresult['correct_percent'],
+            'tk_pass'            => $testresult['passed'] ? 1 : 0,
+        );
+        $ticket = array_merge($ticket, $update);
+        $dbw = wfGetDB(DB_MASTER);
+        $dbw->update('mwq_ticket', $update, array('tk_id' => $ticket['tk_id']), __METHOD__);
+    }
+
     /* Build email text */
-    function buildMailText($ticket, $test, $testresult)
+    static function buildMailText($ticket, $test, $testresult)
     {
         $msg_r = wfMsg('mwquizzer-right-answer');
         $msg_y = wfMsg('mwquizzer-your-answer');
@@ -1270,11 +1302,11 @@ EOT;
     }
 
     /* Send emails with test results to administrators */
-    function sendMail($ticket, $test, $testresult)
+    static function sendMail($ticket, $test, $testresult)
     {
         global $egMWQuizzerAdmins, $wgEmergencyContact;
         /* TODO (?) send mail without correct answers to user */
-        $text = $this->buildMailText($ticket, $test, $testresult);
+        $text = self::buildMailText($ticket, $test, $testresult);
         $sender = new MailAddress($wgEmergencyContact);
         foreach ($egMWQuizzerAdmins as $admin)
         {
@@ -1288,7 +1320,7 @@ EOT;
     }
 
     /* Get ticket from the database */
-    function loadTicket($id, $key)
+    static function loadTicket($id, $key)
     {
         $dbr = wfGetDB(DB_SLAVE);
         $result = $dbr->select('mwq_ticket', '*', array(
@@ -1306,7 +1338,7 @@ EOT;
     {
         global $wgOut, $wgTitle;
 
-        $ticket = $this->loadTicket($args['ticket_id'], $args['ticket_key']);
+        $ticket = self::loadTicket($args['ticket_id'], $args['ticket_key']);
         if (!$ticket)
         {
             if ($args['id'])
@@ -1320,12 +1352,14 @@ EOT;
         }
 
         $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
-        $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
-        $testresult = $this->checkOrLoadResult($ticket, $test, $args);
+        $testresult = self::checkOrLoadResult($ticket, $test, $args);
 
         $html = '';
         if ($testresult['seen'])
+        {
+            $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
             $html .= wfMsg('mwquizzer-variant-already-seen', $href);
+        }
 
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
@@ -1348,21 +1382,21 @@ EOT;
     }
 
     /* A cell with <span>$n</span> ≈ $p% */
-    static function resultCell($n, $p)
+    static function wrapResult($n, $p, $e = 'td')
     {
         $cell = self::xelement('span', array('class' => 'mwq-count'), $n);
         $cell .= ' ≈ ' . $p . '%';
-        return self::xelement('td', NULL, $cell);
+        return $e ? self::xelement($e, NULL, $cell) : $cell;
     }
 
     /* Get HTML code for result table (answers/score count/percent) */
     function getResultHtml($ticket, $test, $testresult)
     {
         $row = self::xelement('th', NULL, wfMsg('mwquizzer-right-answers'))
-             . self::xelement('th', NULL, wfMsg('mwquizzer-score'));
+             . self::xelement('th', NULL, wfMsg('mwquizzer-score-long'));
         $html .= self::xelement('tr', NULL, $row);
-        $row = self::resultCell($testresult['correct_count'], $testresult['correct_percent'])
-             . self::resultCell($testresult['score'], $testresult['score_percent']);
+        $row = self::wrapResult($testresult['correct_count'], $testresult['correct_percent'])
+             . self::wrapResult($testresult['score'], $testresult['score_percent']);
         $html .= self::xelement('tr', NULL, $row);
         $html = self::xelement('table', array('class' => 'mwq-result'), $html);
         $html = self::xelement('h2', NULL, wfMsg('mwquizzer-results')) . $html;
@@ -1558,7 +1592,12 @@ EOT;
             'SQL_CALC_FOUND_ROWS',
         ));
         while ($row = $dbr->fetchRow($result))
+        {
+            /* Recalculate scores */
+            if ($row['tk_end_time'] !== NULL && $row['tk_score'] === NULL)
+                self::recalcTicket($row);
             $tickets[] = $row;
+        }
         $dbr->freeResult($result);
         $total = $dbr->query('SELECT FOUND_ROWS()');
         $total = $dbr->fetchRow($total);
@@ -1581,7 +1620,7 @@ EOT;
         $skin = $wgUser->getSkin();
         $html = '';
         $tr = '';
-        foreach (explode(' ', 'ticket-id quiz variant user start end duration ip') as $i)
+        foreach (explode(' ', 'ticket-id quiz variant user start end duration ip score correct') as $i)
             $tr .= self::xelement('th', NULL, wfMsg("mwquizzer-$i"));
         $html .= self::xelement('tr', NULL, $tr);
         // ID[LINK] TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
@@ -1635,11 +1674,19 @@ EOT;
             $duration = wfTimestamp(TS_UNIX, $t['tk_end_time']) - wfTimestamp(TS_UNIX, $t['tk_start_time']);
             $d = $duration > 86400 ? intval($duration / 86400) . 'd ' : '';
             $tr[] = $d . gmdate('H:i:s', $duration % 86400);
+            /* 8. User IP */
             $tr[] = $t['tk_user_ip'];
+            /* 9. Score and % */
+            $tr[] = self::wrapResult($t['tk_score'], $t['tk_score_percent'], '');
+            /* 10. Correct answers count and % */
+            $tr[] = self::wrapResult($t['tk_correct'], $t['tk_correct_percent'], '');
             /* Format HTML row */
             $row = '';
-            foreach ($tr as &$td)
-                $row .= self::xelement('td', NULL, $td);
+            foreach ($tr as $i => &$td)
+            {
+                $attr = $i == 8 || $i == 9 ? array('class' => $t['tk_pass'] ? 'mwq-pass' : 'mwq-fail') : NULL;
+                $row .= self::xelement('td', $attr, $td);
+            }
             $html .= self::xelement('tr', NULL, $row);
         }
         $html = self::xelement('table', array('class' => 'mwq-review'), $html);

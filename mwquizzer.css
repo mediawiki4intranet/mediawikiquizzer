@@ -23,3 +23,5 @@
 .mwq-select-tickets { margin: 12px 0; }
 .mwq-select-tickets input { margin: 1px 0; }
 .mwq-dead { color: red; }
+.mwq-fail { background-color: #ffe0e0; }
+.mwq-pass { background-color: #e0ffe0; }

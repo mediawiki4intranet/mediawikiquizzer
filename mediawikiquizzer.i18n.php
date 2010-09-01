@@ -52,7 +52,7 @@ $messages['en'] = array(
     'mwquizzer-results'                 => 'Results',
     'mwquizzer-variant-msg'             => '<p>Variant $1.</p>',
     'mwquizzer-right-answers'           => 'Correct answers',
-    'mwquizzer-score'                   => 'Score',
+    'mwquizzer-score-long'              => 'Score',
     'mwquizzer-random-correct'          => '<i>Note that the expectation of  матожидание числа правильных ответов при случайном выборе ≈ <b>$1</b></i>',
     'mwquizzer-try-quiz'                => 'Try <a href="$2">the quiz «$1»</a>!',
     'mwquizzer-try'                     => 'try',
@@ -64,7 +64,7 @@ $messages['en'] = array(
     'mwquizzer-no-tickets'              => 'No tickets found.',
     'mwquizzer-pages'                   => 'Pages: ',
 
-    /* Имена разных полей */
+    /* Names of various fields */
     'mwquizzer-ticket-id'               => 'Ticket ID',
     'mwquizzer-quiz'                    => 'Quiz',
     'mwquizzer-variant'                 => 'Variant',
@@ -75,6 +75,8 @@ $messages['en'] = array(
     'mwquizzer-duration'                => 'Duration',
     'mwquizzer-ip'                      => 'IP address',
     'mwquizzer-perpage'                 => 'Count on one page',
+    'mwquizzer-score'                   => 'Score',
+    'mwquizzer-correct'                 => 'Correct',
 
     /* Regular expressions used to parse various quiz field names */
     'mwquizzer-parse-test_name'                         => 'Name|Title',
@@ -138,7 +140,7 @@ $messages['ru'] = array(
     'mwquizzer-results'                 => 'Итог',
     'mwquizzer-variant-msg'             => '<p>Вариант $1.</p>',
     'mwquizzer-right-answers'           => 'Число правильных ответов',
-    'mwquizzer-score'                   => 'Набрано очков',
+    'mwquizzer-score-long'              => 'Набрано очков',
     'mwquizzer-random-correct'          => '<i>Кстати, матожидание числа правильных ответов при случайном выборе ≈ <b>$1</b></i>',
     'mwquizzer-try-quiz'                => 'Попробуй <a href="$2">пройти тест «$1»</a>!',
     'mwquizzer-try'                     => 'пройти',
@@ -162,6 +164,8 @@ $messages['ru'] = array(
     'mwquizzer-duration'                => 'Длительность',
     'mwquizzer-ip'                      => 'IP-адрес',
     'mwquizzer-perpage'                 => 'На странице',
+    'mwquizzer-score'                   => 'Очки',
+    'mwquizzer-correct'                 => 'Ответы',
 
     /* Регулярные выражения для разбора названий различных полей теста */
     'mwquizzer-parse-test_name'                         => 'Название|Name|Title',
