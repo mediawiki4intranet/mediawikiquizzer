@@ -13,7 +13,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_test (
   -- test title
   test_name varchar(255) NOT NULL default '',
   -- brief description of test
-  test_intro blob,
+  test_intro longblob,
   -- TEST or TUTOR
   test_mode enum('TEST', 'TUTOR') NOT NULL default 'TEST',
   -- randomize choice positions
@@ -30,7 +30,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_test (
   -- but if qt_autofilter_min_tries <= 0 then autofilter is disabled
   test_autofilter_success_percent tinyint NOT NULL,
   -- quiz article parse log
-  test_log blob NOT NULL,
+  test_log longblob NOT NULL,
   PRIMARY KEY (test_id)
 ) /*$wgDBTableOptions*/;
 
