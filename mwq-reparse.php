@@ -27,6 +27,8 @@ if (!isset($options['quick']))
     echo "\n";
 }
 
+$wgUser = User::newFromName('WikiSysop');
+
 $titles = array();
 $dbw = wfGetDB(DB_MASTER);
 $result = $dbw->select('page', 'page_id', array('page_namespace' => NS_QUIZ, "INSTR(page_title,'/')=0"));
@@ -34,12 +36,10 @@ while ($row = $dbw->fetchRow($result))
     $titles[] = Title::newFromId($row[0]);
 $dbw->freeResult($result);
 
-$wgUser = User::newFromName('WikiSysop');
-$wgLang->fixUpSettings();
 foreach ($titles as $t)
 {
     $wgTitle = $t;
-    print $t->getPrefixedText()."...\n";
+    print "Quiz:".$t->getText()."...\n";
     if ($a = new Article($t))
         $a->doEdit($a->getContent(), 'Re-parse MWQuizzer quiz', EDIT_FORCE_BOT);
 }
