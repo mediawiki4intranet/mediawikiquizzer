@@ -260,12 +260,14 @@ class MediawikiQuizzerUpdater
                             {
                                 /* Question comments */
                                 $log .= "[INFO] Begin question comments: $log_el\n";
+                                $st = self::ST_QUESTION;
                                 $append = NULL;
                             }
                             elseif ($sid == 'explanation' || $sid == 'label')
                             {
                                 /* Question field */
                                 $log .= "[INFO] Begin question $sid: $log_el\n";
+                                $st = self::ST_QUESTION;
                                 $append = array(&$q[count($q)-1]["qn_$sid"]);
                             }
                             else
