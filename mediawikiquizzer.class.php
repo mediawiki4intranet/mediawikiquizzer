@@ -1411,6 +1411,9 @@ EOT;
     {
         global $egMWQuizzerCertificateTemplate;
 
+        if (!file_exists($egMWQuizzerCertificateTemplate))
+            return false;
+
         if (file_exists("$certpath.jpg") && file_exists("$certpath.thumb.jpg"))
             return true;
 
@@ -1448,14 +1451,17 @@ EOT;
     /* Generate a completion certificate and get HTML code for the certificate */
     function getCertificateHtml($ticket, $test, $testresult)
     {
-        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer;
+        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer, $wgScriptPath;
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';
         if (!is_dir($egMWQuizzerCertificateDir . $hash))
             mkdir($egMWQuizzerCertificateDir . $hash, 0777, true);
+        $certuri = $egMWQuizzerCertificateUri;
+        if ($certuri{0} != '/')
+            $certuri = $wgScriptPath . '/' . $certuri;
         $certpath = $egMWQuizzerCertificateDir . $hash . $code;
-        $certuri = $egMWQuizzerCertificateUri . $hash . $code;
+        $certuri .= $hash . $code;
         if (!preg_match('#^[a-z]+://#is', $certuri))
         {
             if ($certuri{0} != '/')
