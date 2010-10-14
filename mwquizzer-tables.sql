@@ -108,7 +108,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
   tk_pass tinyint(1) DEFAULT NULL,
   PRIMARY KEY (tk_id),
   FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON UPDATE CASCADE,
-  FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE
+  FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/`user` (user_id) ON DELETE SET NULL ON UPDATE CASCADE
 ) /*$wgDBTableOptions*/;
 
 CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
