@@ -1536,7 +1536,7 @@ EOT;
         for ($i = 0; $i < $npages; $i++)
         {
             if ($i != $curpage)
-                $pages[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array('page' => $i)+$args)), $i);
+                $pages[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array('page' => $i)+$args)), $i+1);
             else
                 $pages[] = self::xelement('b', array('class' => 'mwq-curpage'), $i+1);
         }
