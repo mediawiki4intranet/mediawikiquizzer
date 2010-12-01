@@ -48,6 +48,8 @@ if (!$egMWQuizzerCertificateDir)
 if (!$egMWQuizzerCertificateUri)
     $egMWQuizzerCertificateUri = "images/generated/diplomas";
 
+/* END DEFAULT SETTINGS */
+
 class MediawikiQuizzer
 {
     static function isTestAdmin()
@@ -93,6 +95,12 @@ class MediawikiQuizzer
     {
         if (self::isQuiz($article->getTitle()))
             MediawikiQuizzerUpdater::updateQuiz($article, $text);
+        /* Update quizzes which include updated article */
+        foreach (self::getQuizLinksTo($article->getTitle()) as $template)
+        {
+            $article = new Article($template);
+            MediawikiQuizzerUpdater::updateQuiz($article, $article->getContent());
+        }
         return true;
     }
 
@@ -102,5 +110,56 @@ class MediawikiQuizzer
         if (self::isQuiz($t = $article->getTitle()))
             MediawikiQuizzerPage::quizArticleInfo($t->getText());
         return true;
+    }
+
+    /* Get quizzes which include given title */
+    static function getQuizLinksTo($title)
+    {
+        $id_seen = array();
+        $quiz_links = array();
+        $dbr = wfGetDB(DB_SLAVE);
+
+        $where = array(
+            'tl_namespace' => $title->getNamespace(),
+            'tl_title' => $title->getDBkey(),
+        );
+
+        do
+        {
+            $res = $dbr->select(
+                array('page', 'templatelinks'),
+                array('page_namespace', 'page_title', 'page_id', 'page_len', 'page_is_redirect' ),
+                $where + array(
+                    'page_namespace' => NS_QUIZ,
+                    'page_is_redirect' => 0,
+                    'tl_from=page_id',
+                ),
+                __METHOD__
+            );
+
+            $where['tl_namespace'] = NS_QUIZ;
+            $where['tl_title'] = array();
+
+            if (!$dbr->numRows($res))
+                break;
+
+            foreach ($res as $row)
+            {
+                if ($titleObj = Title::makeTitle($row->page_namespace, $row->page_title))
+                {
+                    if ($titleObj->getNamespace() == NS_QUIZ && !$id_seen[$row->page_id])
+                    {
+                        /* Make closure only inside NS_QUIZ */
+                        $where['tl_title'][] = $titleObj->getDBkey();
+                        $id_seen[$row->page_id] = 1;
+                    }
+                    $quiz_links[] = $titleObj;
+                }
+            }
+
+            $dbr->freeResult($res);
+        } while (count($where['tl_title']));
+
+        return $quiz_links;
     }
 }
