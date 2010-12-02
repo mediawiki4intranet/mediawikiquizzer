@@ -594,6 +594,7 @@ class MediawikiQuizzerPage extends SpecialPage
             $id = $args['id'];
         if (!$id)
             $id = $args['id_test']; // backward compatibility
+        $id = str_replace('_', ' ', $id);
 
         if (!self::$modes[$mode])
             $mode = $is_adm && !$id ? 'review' : 'show';
