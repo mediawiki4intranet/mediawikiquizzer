@@ -28,6 +28,17 @@ class MediawikiQuizzerUpdater
         'autofilter_min_tries' => 4,
         'autofilter_success_percent' => 4
     );
+    static $test_default_values = array(
+        'test_name' => '',
+        'test_intro' => '',
+        'test_mode' => 'TEST',
+        'test_shuffle_questions' => 0,
+        'test_shuffle_choices' => 0,
+        'test_limit_questions' => 0,
+        'test_ok_percent' => 80,
+        'test_autofilter_min_tries' => 0,
+        'test_autofilter_success_percent' => 90,
+    );
     static $test_keys;
     static $regexps;
     static $qn_keys = array('choice', 'choices', 'correct', 'corrects', 'label', 'explanation', 'comments');
@@ -138,7 +149,7 @@ class MediawikiQuizzerUpdater
         $append = NULL;         /* Array(&$str) or NULL. When array(&$str), content is appended to $str. */
         /* Variables: */
         $q = array();           /* Questions */
-        $quiz = array();        /* Quiz field => value */
+        $quiz = self::$test_default_values; /* Quiz field => value */
         $field = '';            /* Current parsed field */
         $correct = 0;           /* Is current choice(s) section for correct choices */
         $lastAnchor = '';       /* Last remembered <a name=""></a> */
