@@ -775,10 +775,10 @@ class MediawikiQuizzerPage extends SpecialPage
 
             if (!$variant && $test['test_autofilter_min_tries'] > 0 &&
                 $q['tries'] >= $test['test_autofilter_min_tries'] &&
-                $q['correct_tries']/$q['tries'] >= $test['test_autofilter_correct_percent']/100.0)
+                $q['correct_tries']/$q['tries'] >= $test['test_autofilter_success_percent']/100.0)
             {
                 /* Statistics tells us this question is too simple, skip it */
-                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].', because correct percent = '.$q['correct_tries'].'/'.$q['tries'].' >= '.$test['test_autofilter_correct_percent']."%\n");
+                wfDebug(__CLASS__.': Skipping '.$q['qn_hash'].', because correct percent = '.$q['correct_tries'].'/'.$q['tries'].' >= '.$test['test_autofilter_success_percent']."%\n");
                 continue;
             }
             $q['choices'] = array();
@@ -813,34 +813,37 @@ class MediawikiQuizzerPage extends SpecialPage
         }
 
         /* Read choices: */
-        $result = $dbr->select(
-            'mwq_choice', '*', array('ch_question_hash' => array_keys($rows)),
-            __METHOD__, array('ORDER BY' => 'ch_question_hash, ch_num')
-        );
-        $q = NULL;
-        while ($choice = $dbr->fetchRow($result))
+        if ($rows)
         {
-            if (!$q)
-                $q = &$rows[$choice['ch_question_hash']];
-            elseif ($q['qn_hash'] != $choice['ch_question_hash'])
+            $result = $dbr->select(
+                'mwq_choice', '*', array('ch_question_hash' => array_keys($rows)),
+                __METHOD__, array('ORDER BY' => 'ch_question_hash, ch_num')
+            );
+            $q = NULL;
+            while ($choice = $dbr->fetchRow($result))
             {
-                if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
-                    unset($rows[$q['qn_hash']]);
-                $q = &$rows[$choice['ch_question_hash']];
+                if (!$q)
+                    $q = &$rows[$choice['ch_question_hash']];
+                elseif ($q['qn_hash'] != $choice['ch_question_hash'])
+                {
+                    if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
+                        unset($rows[$q['qn_hash']]);
+                    $q = &$rows[$choice['ch_question_hash']];
+                }
+                $q['choiceByNum'][$choice['ch_num']] = $choice;
+                $q['choices'][] = &$q['choiceByNum'][$choice['ch_num']];
+                if ($choice['ch_correct'])
+                {
+                    $q['correct_count']++;
+                    $q['choiceByNum'][$choice['ch_num']]['index'] = count($q['choices']);
+                    $q['correct_choices'][] = &$q['choiceByNum'][$choice['ch_num']];
+                }
             }
-            $q['choiceByNum'][$choice['ch_num']] = $choice;
-            $q['choices'][] = &$q['choiceByNum'][$choice['ch_num']];
-            if ($choice['ch_correct'])
-            {
-                $q['correct_count']++;
-                $q['choiceByNum'][$choice['ch_num']]['index'] = count($q['choices']);
-                $q['correct_choices'][] = &$q['choiceByNum'][$choice['ch_num']];
-            }
+            if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
+                unset($rows[$q['qn_hash']]);
+            unset($q);
+            $dbr->freeResult($result);
         }
-        if (!self::finalizeQuestionRow($q, $variant && true, $test['test_shuffle_choices']))
-            unset($rows[$q['qn_hash']]);
-        unset($q);
-        $dbr->freeResult($result);
 
         /* Finally, build question array for the test */
         $test['questions'] = array();
