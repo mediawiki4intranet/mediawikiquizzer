@@ -699,6 +699,8 @@ class MediawikiQuizzerPage extends SpecialPage
                 // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
                 $q['score_incorrect'] = -$q['correct_count'] / (count($q['choices']) - $q['correct_count']);
             }
+            foreach ($q['choices'] as $i => &$c)
+                $c['index'] = $i+1;
             return true;
         }
         return false;
@@ -835,7 +837,6 @@ class MediawikiQuizzerPage extends SpecialPage
                 if ($choice['ch_correct'])
                 {
                     $q['correct_count']++;
-                    $q['choiceByNum'][$choice['ch_num']]['index'] = count($q['choices']);
                     $q['correct_choices'][] = &$q['choiceByNum'][$choice['ch_num']];
                 }
             }
