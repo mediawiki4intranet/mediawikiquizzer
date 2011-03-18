@@ -55,6 +55,7 @@ class MediawikiQuizzerUpdater
         $options = clone $wgParser->mOptions;
         $options->mNumberHeadings = false;
         $options->mEditSection = true;
+        $options->mIsSectionPreview = true;
         $html = $wgParser->parse("__NOTOC__\n$text", $article->getTitle(), $options, true, false)->getText();
         return $html;
     }
