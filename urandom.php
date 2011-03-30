@@ -23,7 +23,7 @@ if (!function_exists('urandom'))
             {
                 $com = new COM('CAPICOM.Utilities.1');
                 if (method_exists($com, 'GetRandom'))
-		                $pr_bits = base64_decode($com1->GetRandom($nbytes,0));
+		                $pr_bits = base64_decode($com->GetRandom($nbytes,0));
     		        else
 		            {
 		                $com = new COM('System.Security.Cryptography.RNGCryptoServiceProvider');
