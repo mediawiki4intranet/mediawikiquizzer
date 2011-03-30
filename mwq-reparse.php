@@ -6,7 +6,7 @@ chdir(dirname(__FILE__).'/../../');
 
 $options = array('quick');
 require_once('maintenance/commandLine.inc');
-require_once('maintenance/counter.php');
+@include_once('maintenance/counter.php');
 
 if (!defined('NS_QUIZ'))
     die("MediaWikiQuizzer is disabled on this wiki.");
@@ -16,7 +16,7 @@ This is needed after updating MediaWikiQuizzer extension.
 Depending on the size of your database this may take a while!
 ";
 
-if (!isset($options['quick']))
+if (!isset($options['quick']) && function_exists('print_c'))
 {
     print "Abort with control-c in the next five seconds... ";
     for ($i = 6; $i >= 1;)

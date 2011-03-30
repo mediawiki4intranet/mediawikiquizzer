@@ -1,10 +1,13 @@
 <?php
 
+// "Real random number" generator
+// (c) Vitaliy Filippov, 2010-2011
+
 if (!function_exists('urandom'))
 {
     function urandom($nbytes = 16)
     {
-        $pr_bits = NULL;
+        $pr_bits = '';
         // Unix/Linux platform?
         $fp = @fopen('/dev/urandom', 'rb');
         if ($fp !== FALSE)
@@ -18,16 +21,23 @@ if (!function_exists('urandom'))
             // http://msdn.microsoft.com/en-us/library/aa388176(VS.85).aspx
             try
             {
-                $CAPI_Util = new COM('CAPICOM.Utilities.1');
-                $pr_bits = $CAPI_Util->GetRandom($nbytes,0);
-                // if we ask for binary data PHP munges it, so we
-                // request base64 return value.
-                $pr_bits = base64_decode($pr_bits);
+                $com = new COM('CAPICOM.Utilities.1');
+                if (method_exists($com, 'GetRandom'))
+		                $pr_bits = base64_decode($com1->GetRandom($nbytes,0));
+    		        else
+		            {
+		                $com = new COM('System.Security.Cryptography.RNGCryptoServiceProvider');
+			              if (method_exists($com, 'GetBytes'))
+			                  $pr_bits = base64_decode($com->GetBytes($nbytes));
+			          }
             }
             catch (Exception $ex)
             {
             }
         }
+        if (!strlen($pr_bits))
+            for ($i = 0; $i < $nbytes; $i++)
+                $pr_bits .= chr(mt_rand(0, 255));
         return $pr_bits;
     }
 }
