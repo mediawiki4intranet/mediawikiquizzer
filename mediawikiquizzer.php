@@ -85,7 +85,7 @@ class MediawikiQuizzer
             return false;
         if ($egMWQuizzerAdmins && in_array($wgUser->getName(), $egMWQuizzerAdmins))
             return true;
-        if ($egMWQuizzerIntraACLAdminGroup)
+        if ($egMWQuizzerIntraACLAdminGroup && class_exists('HACLGroup'))
         {
             $intraacl_group = HACLGroup::newFromName($egMWQuizzerIntraACLAdminGroup, false);
             if ($intraacl_group && $intraacl_group->hasUserMember($wgUser, true))
