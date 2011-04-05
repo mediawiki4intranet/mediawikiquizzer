@@ -16,13 +16,8 @@
 require_once 'urandom.php';
 
 /**
- * Here are 2 classes: (1) MediawikiQuizzerUpdater and (2) MediawikiQuizzerPage.
- *
- * (1) is responsible for parsing quiz articles and writing parsed quizzes into DB.
- * It is done using a recursive DOM parser and DOMParseUtils class.
- *
- * (2) implements the special page Special:MediawikiQuizzer.
- * It has 4 modes of execution:
+ * MediawikiQuizzerPage implements the special page Special:MediawikiQuizzer.
+ * It has the following modes of execution:
  * (a) mode=show, handled by showTest()
  *     Displays a testing form with random test variant.
  * (b) mode=check, handled by checkTest()
@@ -36,502 +31,10 @@ require_once 'urandom.php';
  *     Correct answers are displayed to administrators and also to users who
  *     have read access to the quiz article.
  * (d) mode=review, handled by review()
- *     Test results review mode. Is available to administrators
+ *     Test results review mode. Administrators have access to all test results,
+ *     other users only have access to results of tests to source of which they
+ *     have read access.
  */
-
-class MediawikiQuizzerUpdater
-{
-    static $test_field_types = array(
-        'name' => 1,
-        'intro' => 0,
-        'mode' => 2,
-        'shuffle_questions' => 3,
-        'shuffle_choices' => 3,
-        'limit_questions' => 4,
-        'ok_percent' => 4,
-        'autofilter_min_tries' => 4,
-        'autofilter_success_percent' => 4
-    );
-    static $test_default_values = array(
-        'test_name' => '',
-        'test_intro' => '',
-        'test_mode' => 'TEST',
-        'test_shuffle_questions' => 0,
-        'test_shuffle_choices' => 0,
-        'test_limit_questions' => 0,
-        'test_ok_percent' => 80,
-        'test_autofilter_min_tries' => 0,
-        'test_autofilter_success_percent' => 90,
-    );
-    static $test_keys;
-    static $regexps;
-    static $qn_keys = array('choice', 'choices', 'correct', 'corrects', 'label', 'explanation', 'comments');
-
-    /* Parse wiki-text $text without TOC, heading numbers and EditSection links */
-    static function parse($article, $text)
-    {
-        global $wgParser;
-        if (defined('MAG_NUMBEREDHEADINGS') && ($mag = MagicWord::get(MAG_NUMBEREDHEADINGS)))
-            $mag->matchAndRemove($text);
-        MagicWord::get('toc')->matchAndRemove($text);
-        MagicWord::get('forcetoc')->matchAndRemove($text);
-        MagicWord::get('noeditsection')->matchAndRemove($text);
-        $options = clone $wgParser->mOptions;
-        $options->mNumberHeadings = false;
-        $options->mEditSection = true;
-        $options->mIsSectionPreview = true;
-        $html = $wgParser->parse("__NOTOC__\n$text", $article->getTitle(), $options, true, false)->getText();
-        return $html;
-    }
-
-    /* Build regular expressions to match headings */
-    static function getRegexps()
-    {
-        wfLoadExtensionMessages('MediawikiQuizzer');
-        $test_regexp = array();
-        $qn_regexp = array();
-        self::$test_keys = array_keys(self::$test_field_types);
-        foreach (self::$test_keys as $k)
-            $test_regexp[] = '('.wfMsgNoTrans("mwquizzer-parse-test_$k").')';
-        foreach (self::$qn_keys as $k)
-            $qn_regexp[] = '('.wfMsgNoTrans("mwquizzer-parse-$k").')';
-        $test_regexp_nq = $test_regexp;
-        array_unshift($test_regexp, '('.wfMsgNoTrans('mwquizzer-parse-question').')');
-        $test_regexp = str_replace('/', '\\/', implode('|', $test_regexp));
-        $test_regexp_nq = '()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
-        $qn_regexp = str_replace('/', '\\/', implode('|', $qn_regexp));
-        self::$regexps = array($test_regexp, $test_regexp_nq, $qn_regexp);
-    }
-
-    /* Transform quiz field value according to its type */
-    static function transformFieldValue($field, $value)
-    {
-        $t = self::$test_field_types[$field];
-        if ($t > 0) /* not an HTML code */
-        {
-            $value = trim(strip_tags($value));
-            if ($t == 2) /* mode */
-                $value = strpos(strtolower($value), 'tutor') !== false ? 'TUTOR' : 'TEST';
-            elseif ($t == 3) /* boolean */
-            {
-                $re = str_replace('/', '\\/', wfMsgNoTrans('mwquizzer-parse-true'));
-                $value = preg_match("/$re/uis", $value) ? 1 : 0;
-            }
-            elseif ($t == 4) /* integer */
-                $value = intval($value);
-            /* else ($t == 1) // just a string */
-        }
-        else
-            $value = trim($value);
-        return $value;
-    }
-
-    static function textlog($s)
-    {
-        if (is_object($s))
-            $s = DOMParseUtils::saveChildren($s);
-        return trim(str_replace("\n", " ", strip_tags($s)));
-    }
-
-    /* Check last question for correctness */
-    static function checkLastQuestion(&$questions, &$log)
-    {
-        $lq = $questions[count($questions)-1];
-        $ncorrect = 0;
-        $ok = false;
-        if ($lq['choices'])
-            foreach ($lq['choices'] as $lc)
-                if ($lc['ch_correct'])
-                    $ncorrect++;
-        if (!$lq['choices'] || !count($lq['choices']))
-            $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
-        elseif ($ncorrect >= $lq['choices'])
-            $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
-        elseif (!$ncorrect)
-            $log .= "[ERROR] No correct choices for question: ".self::textlog($lq['qn_text'])."\n";
-        else
-            $ok = true;
-        if (!$ok)
-            array_pop($questions);
-    }
-
-    /* states: */
-    const ST_OUTER = 0;     /* Outside everything */
-    const ST_QUESTION = 1;  /* Inside question */
-    const ST_PARAM_DD = 2;  /* Waiting for <dd> with quiz field value */
-    const ST_CHOICE = 3;    /* Inside single choice section */
-    const ST_CHOICES = 4;   /* Inside multiple choices section */
-
-    /* parseQuiz() using a state machine :-) */
-    static function parseQuiz2($html)
-    {
-        self::getRegexps();
-        $log = '';
-        $document = DOMParseUtils::loadDOM($html);
-        /* Stack: [ [ Element, ChildIndex, AlreadyProcessed, AppendStrlen ] , [ ... ] ] */
-        $stack = array(array($document->documentElement, 0, false, 0));
-        $st = self::ST_OUTER;   /* State index */
-        $append = NULL;         /* Array(&$str) or NULL. When array(&$str), content is appended to $str. */
-        /* Variables: */
-        $q = array();           /* Questions */
-        $quiz = self::$test_default_values; /* Quiz field => value */
-        $field = '';            /* Current parsed field */
-        $correct = 0;           /* Is current choice(s) section for correct choices */
-        $lastAnchor = '';       /* Last remembered <a name=""></a> */
-        /* Loop through all elements: */
-        while ($stack)
-        {
-            list($p, $i, $h, $l) = $stack[count($stack)-1];
-            if ($i >= $p->childNodes->length)
-            {
-                array_pop($stack);
-                if ($append && !$h)
-                {
-                    /* Remove children from the end of $append[0]
-                       and append element itself */
-                    $append[0] = substr($append[0], 0, $l) . $document->saveXML($p);
-                }
-                elseif ($h && $stack)
-                {
-                    /* Propagate "Already processed" value */
-                    $stack[count($stack)-1][2] = true;
-                }
-                continue;
-            }
-            $stack[count($stack)-1][1]++;
-            $e = $p->childNodes->item($i);
-            if ($e->nodeType == XML_ELEMENT_NODE)
-            {
-                $fall = false;
-                if (preg_match('/^h(\d)$/is', $e->nodeName, $m))
-                {
-                    $level = $m[1];
-                    $log_el = str_repeat('=', $level);
-                    /* Remove editsection links */
-                    $editsection = NULL;
-                    if ($e->childNodes->length)
-                    {
-                        $span = $e->childNodes->item(0);
-                        if ($span->nodeName == 'span' && $span->getAttribute('class') == 'editsection')
-                        {
-                            $e->removeChild($span);
-                            $editsection = $document->saveXML($span);
-                        }
-                    }
-                    $log_el = $log_el . self::textlog($e) . $log_el;
-                    /* Match question/parameter section title */
-                    $chk = DOMParseUtils::checkNode($e, self::$regexps[0], true);
-                    if ($chk)
-                    {
-                        /* Question section */
-                        if ($chk[1][0][0])
-                        {
-                            if ($q)
-                                self::checkLastQuestion($q, $log);
-                            /* Question section - found */
-                            $log .= "[INFO] Begin question section: $log_el\n";
-                            $st = self::ST_QUESTION;
-                            $q[] = array(
-                                'qn_label' => DOMParseUtils::saveChildren($chk[0], true),
-                                'qn_anchor' => $lastAnchor,
-                                'qn_editsection' => $editsection,
-                            );
-                            $append = array(&$q[count($q)-1]['qn_text']);
-                            $lastAnchor = '';
-                        }
-                        /* Quiz parameter */
-                        elseif ($st == self::ST_OUTER || $st == self::ST_PARAM_DD)
-                        {
-                            $st = self::ST_OUTER;
-                            $field = '';
-                            foreach ($chk[1] as $i => $c)
-                            {
-                                if ($c[0])
-                                {
-                                    $field = self::$test_keys[$i-1];
-                                    break;
-                                }
-                            }
-                            if ($field)
-                            {
-                                /* Parameter - found */
-                                $log .= "[INFO] Begin quiz field \"$field\" section: $log_el\n";
-                                $append = array(&$quiz["test_$field"]);
-                            }
-                            else
-                            {
-                                /* This should never happen ! */
-                                $line = __FILE__.':'.__LINE__;
-                                $log .= "[ERROR] MYSTICAL BUG: Unknown quiz field at $line in: $log_el\n";
-                            }
-                        }
-                        else
-                        {
-                            /* INFO: Parameter section inside question section / choice section */
-                            $log .= "[WARN] Field section must come before questions: $log_el\n";
-                        }
-                    }
-                    elseif ($st == self::ST_QUESTION || $st == self::ST_CHOICE || $st == self::ST_CHOICES)
-                    {
-                        $chk = DOMParseUtils::checkNode($e, self::$regexps[2], true);
-                        if ($chk)
-                        {
-                            /* Question sub-section */
-                            $sid = '';
-                            foreach ($chk[1] as $i => $c)
-                            {
-                                if ($c[0])
-                                {
-                                    $sid = self::$qn_keys[$i];
-                                    break;
-                                }
-                            }
-                            if (!$sid)
-                            {
-                                /* This should never happen ! */
-                                $line = __FILE__.':'.__LINE__;
-                                $log .= "[ERROR] MYSTICAL BUG: Unknown question field at $line in: $log_el\n";
-                            }
-                            elseif ($sid == 'comments')
-                            {
-                                /* Question comments */
-                                $log .= "[INFO] Begin question comments: $log_el\n";
-                                $st = self::ST_QUESTION;
-                                $append = NULL;
-                            }
-                            elseif ($sid == 'explanation' || $sid == 'label')
-                            {
-                                /* Question field */
-                                $log .= "[INFO] Begin question $sid: $log_el\n";
-                                $st = self::ST_QUESTION;
-                                $append = array(&$q[count($q)-1]["qn_$sid"]);
-                            }
-                            else
-                            {
-                                /* Some kind of choice(s) section */
-                                $correct = $sid == 'correct' || $sid == 'corrects' ? 1 : 0;
-                                $lc = $correct ? 'correct choice' : 'choice';
-                                if ($sid == 'correct' || $sid == 'choice')
-                                {
-                                    $log .= "[INFO] Begin single $lc section: $log_el\n";
-                                    $q[count($q)-1]['choices'][] = array('ch_correct' => $correct);
-                                    $st = self::ST_CHOICE;
-                                    $append = array(&$q[count($q)-1]['choices'][count($q[count($q)-1]['choices'])-1]['ch_text']);
-                                }
-                                else
-                                {
-                                    $log .= "[INFO] Begin multiple $lc section: $log_el\n";
-                                    $st = self::ST_CHOICES;
-                                    $append = NULL;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            /* INFO: unknown heading inside question */
-                            $log .= "[WARN] Unparsed heading inside question: $log_el\n";
-                            $fall = true;
-                        }
-                    }
-                    else
-                    {
-                        /* INFO: unknown heading */
-                        $log .= "[WARN] Unparsed heading outside question: $log_el\n";
-                        $fall = true;
-                    }
-                }
-                /* <dt> for a parameter */
-                elseif (($st == self::ST_OUTER || $st == self::ST_PARAM_DD) && $e->nodeName == 'dt')
-                {
-                    $chk = DOMParseUtils::checkNode($e, self::$regexps[1], true);
-                    $log_el = '; ' . trim(strip_tags(DOMParseUtils::saveChildren($e))) . ':';
-                    if ($chk)
-                    {
-                        $st = self::ST_OUTER;
-                        $field = '';
-                        foreach ($chk[1] as $i => $c)
-                        {
-                            if ($c[0])
-                            {
-                                $field = self::$test_keys[$i-1];
-                                break;
-                            }
-                        }
-                        if ($field)
-                        {
-                            /* Parameter - found */
-                            $log .= "[INFO] Begin definition list item for quiz field \"$field\": $log_el\n";
-                            $st = self::ST_PARAM_DD;
-                        }
-                        else
-                        {
-                            /* This should never happen ! */
-                            $line = __FILE__.':'.__LINE__;
-                            $log .= "[ERROR] MYSTICAL BUG: Unknown quiz field at $line in: $log_el\n";
-                        }
-                    }
-                    else
-                    {
-                        /* INFO: unknown <dt> key */
-                        $log .= "[WARN] Unparsed definition list item: $log_el\n";
-                        $fall = true;
-                    }
-                }
-                elseif ($st == self::ST_PARAM_DD && $e->nodeName == 'dd')
-                {
-                    /* Value for $field */
-                    $value = self::transformFieldValue($field, DOMParseUtils::saveChildren($e));
-                    $log .= "[INFO] Quiz $field = ".self::textlog($value)."\n";
-                    $quiz["test_$field"] = $value;
-                    $st = self::ST_OUTER;
-                    $field = '';
-                }
-                elseif ($st == self::ST_CHOICE && ($e->nodeName == 'ul' || $e->nodeName == 'ol') &&
-                    $e->childNodes->length == 1 && !$append[0])
-                {
-                    /* <ul>/<ol> with single <li> inside choice */
-                    $log .= "[INFO] Stripping single-item list from single-choice section";
-                    $e = $e->childNodes->item(0);
-                    $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
-                    if ($chk)
-                    {
-                        $e = $chk[0];
-                        $n = count($q[count($q)-1]['choices']);
-                        $q[count($q)-1]['choices'][$n-1]['ch_correct'] = 1;
-                        $log .= "[INFO] Correct choice marker is present in single-item list";
-                    }
-                    $append[0] .= trim(DOMParseUtils::saveChildren($e));
-                }
-                elseif ($st == self::ST_CHOICE && $e->nodeName == 'p')
-                {
-                    if ($append[0])
-                        $append[0] .= '<br />';
-                    $append[0] .= trim(DOMParseUtils::saveChildren($e));
-                }
-                elseif ($st == self::ST_CHOICES && $e->nodeName == 'li')
-                {
-                    $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
-                    $c = $correct;
-                    if ($chk)
-                    {
-                        $e = $chk[0];
-                        $c = 1;
-                    }
-                    $children = DOMParseUtils::saveChildren($e);
-                    $log .= "[INFO] Parsed ".($c ? "correct " : "")."choice: ".trim(strip_tags($children))."\n";
-                    $q[count($q)-1]['choices'][] = array(
-                        'ch_correct' => $c,
-                        'ch_text' => trim($children),
-                    );
-                }
-                elseif ($e->nodeName == 'a' && $e->childNodes->length == 0)
-                {
-                    /* Remember anchor names */
-                    if (!($lastAnchor = $e->getAttribute('name')))
-                        $fall = true;
-                }
-                else
-                    $fall = true;
-                if ($fall)
-                {
-                    /* Save position inside append-string to remove
-                       children before appending the element itself */
-                    $stack[] = array($e, 0, false, $append ? strlen($append[0]) : 0);
-                }
-                else
-                    $stack[count($stack)-1][2] = true;
-            }
-            elseif ($append && $e->nodeType == XML_TEXT_NODE && trim($e->nodeValue))
-                $append[0] .= $e->nodeValue;
-        }
-        if ($q)
-            self::checkLastQuestion($q, $log);
-        $quiz['questions'] = $q;
-        $quiz['test_log'] = $log;
-        return $quiz;
-    }
-
-    /* Parse $text and update data of the quiz linked to article title */
-    static function updateQuiz($article, $text)
-    {
-        $html = self::parse($article, $text);
-        $quiz = self::parseQuiz2($html);
-        $quiz['test_log'] = "[INFO] Article revision: ".$article->getLatest()."\n".$quiz['test_log'];
-        $quiz['test_id'] = mb_substr($article->getTitle()->getText(), 0, 32);
-        if (!$quiz['questions'])
-            return;
-        $t2q = array();
-        $qkeys = array();
-        $ckeys = array();
-        $questions = array();
-        $choices = array();
-        $hashes = array();
-        foreach ($quiz['questions'] as $i => $q)
-        {
-            $hash = $q['qn_text'];
-            foreach ($q['choices'] as $c)
-                $hash .= $c['ch_text'];
-            $hash = mb_strtolower(preg_replace('/\s+/s', '', $hash));
-            $hash = md5($hash);
-            foreach ($q['choices'] as $j => $c)
-            {
-                $c['ch_question_hash'] = $hash;
-                $c['ch_num'] = $j+1;
-                $ckeys += $c;
-                $choices[] = $c;
-            }
-            $q['qn_hash'] = $hash;
-            $hashes[] = $hash;
-            unset($q['choices']);
-            $qkeys += $q;
-            $questions[] = $q;
-            $t2q[] = array(
-                'qt_test_id' => $quiz['test_id'],
-                'qt_question_hash' => $hash,
-                'qt_num' => $i+1,
-            );
-        }
-        foreach ($qkeys as $k => $v)
-            if (!array_key_exists($k, $questions[0]))
-                $questions[0][$k] = '';
-        foreach ($ckeys as $k => $v)
-            if (!array_key_exists($k, $choices[0]))
-                $choices[0][$k] = '';
-        unset($quiz['questions']);
-        $dbw = wfGetDB(DB_MASTER);
-        $dbw->delete('mwq_question_test', array('qt_test_id' => $quiz['test_id']), __METHOD__);
-        $dbw->delete('mwq_choice', array('ch_question_hash' => $hashes), __METHOD__);
-        self::insertOrUpdate($dbw, 'mwq_test', array($quiz), __METHOD__);
-        self::insertOrUpdate($dbw, 'mwq_question', $questions, __METHOD__);
-        self::insertOrUpdate($dbw, 'mwq_question_test', $t2q, __METHOD__);
-        self::insertOrUpdate($dbw, 'mwq_choice', $choices, __METHOD__);
-    }
-
-    /* A helper for updating many rows at once (MySQL-specific) */
-    static function insertOrUpdate($dbw, $table, $rows, $fname)
-    {
-        global $wgDBtype;
-        if ($wgDBtype != 'mysql')
-            die('MediawikiQuizzer uses MySQL-specific INSERT INTO ... ON DUPLICATE KEY UPDATE by now. Fix it if you want.');
-        $keys = array_keys($rows[0]);
-        $sql = 'INSERT INTO ' . $dbw->tableName($table) . ' (' . implode(',', $keys) . ') VALUES ';
-        foreach ($rows as &$row)
-        {
-            $r = array();
-            foreach ($keys as $k)
-                if (array_key_exists($k, $row))
-                    $r[] = $row[$k];
-                else
-                    $r[] = '';
-            $row = '(' . $dbw->makeList($r) . ')';
-        }
-        $sql .= implode(',', $rows);
-        foreach ($keys as &$key)
-            $key = "`$key`=VALUES(`$key`)";
-        $sql .= ' ON DUPLICATE KEY UPDATE '.implode(',', $keys);
-        return $dbw->query($sql, $fname);
-    }
-}
 
 class MediawikiQuizzerPage extends SpecialPage
 {
@@ -544,6 +47,14 @@ class MediawikiQuizzerPage extends SpecialPage
         'print' => 1,
         'review' => 1,
     );
+
+    static $questionInfoCache = array();
+
+    var $is_adm = NULL;
+
+    /********************/
+    /*  STATIC METHODS  */
+    /********************/
 
     /* Display parse log and quiz actions for parsed quiz article */
     static function quizArticleInfo($test_id)
@@ -593,6 +104,64 @@ class MediawikiQuizzerPage extends SpecialPage
         }
     }
 
+    /* Display quiz question statistics near editsection link */
+    static function quizQuestionInfo($title, $section, &$result)
+    {
+        global $egMWQuizzerEasyQuestionCompl, $egMWQuizzerHardQuestionCompl;
+        $k = $title->getPrefixedDBkey();
+        /* Load questions taken from this article into cache, if not yet */
+        if (!array_key_exists($k, self::$questionInfoCache))
+        {
+            $dbr = wfGetDB(DB_SLAVE);
+            $r = $dbr->select(
+                array('mwq_question', 'mwq_choice_stats'),
+                '*, COUNT(cs_correct) complete_count, SUM(cs_correct) correct_count',
+                array(
+                    'qn_anchor IS NOT NULL', 'qn_hash=cs_question_hash',
+                    'qn_anchor LIKE '.$dbr->addQuotes("$k|%"),
+                    // Old questions which are really not present in article
+                    // text may reside in the DB, filter them out:
+                    'EXISTS (SELECT * FROM mwq_question_test WHERE qt_question_hash=qn_hash)',
+                ),
+                __FUNCTION__,
+                array('GROUP BY' => 'qn_hash')
+            );
+            foreach ($r as $obj)
+            {
+                preg_match('/\\|(\d+)$/', $obj->qn_anchor, $m);
+                if ($m[1] == 7)
+                    var_dump($obj);
+                self::$questionInfoCache[$k][$m[1]] = $obj;
+            }
+            if (!self::$questionInfoCache[$k])
+                self::$questionInfoCache[$k] = NULL;
+        }
+        /* Append colored statistic hint to editsection span */
+        if (self::$questionInfoCache[$k] &&
+            ($obj = self::$questionInfoCache[$k][$section]))
+        {
+            $style = '';
+            if ($obj->complete_count)
+            {
+                $percent = intval(100*$obj->correct_count/$obj->complete_count);
+                $stat = wfMsg('mwquizzer-complete-stats', $obj->correct_count,
+                    $obj->complete_count, $percent);
+                if ($obj->complete_count > 4)
+                {
+                    if ($percent >= $egMWQuizzerEasyQuestionCompl)
+                        $style = ' style="color: white; background: #080;"';
+                    elseif ($percent <= $egMWQuizzerHardQuestionCompl)
+                        $style = ' style="color: white; background: #a00;"';
+                }
+                if ($style)
+                    $stat = '&nbsp;'.$stat.'&nbsp;';
+            }
+            else
+                $stat = wfMsg('mwquizzer-no-complete-stats');
+            $result .= '<span class="editsection"'.$style.'>'.$stat.'</span>';
+        }
+    }
+
     /* Identical to Xml::element, but does no htmlspecialchars() on $contents */
     static function xelement($element, $attribs = null, $contents = '', $allowShortTag = true)
     {
@@ -603,15 +172,34 @@ class MediawikiQuizzerPage extends SpecialPage
         return Xml::openElement($element, $attribs) . $contents . Xml::closeElement($element);
     }
 
-    /*********************/
-    /* GENERIC FUNCTIONS */
-    /*********************/
+    /********************/
+    /*  OBJECT METHODS  */
+    /********************/
 
     /* Constructor */
     function __construct()
     {
         global $IP, $wgScriptPath, $wgUser, $wgParser, $wgEmergencyContact;
         SpecialPage::SpecialPage('MediawikiQuizzer');
+    }
+
+    /* Check if the user is an administrator for the test $name */
+    function isAdminForTest($name)
+    {
+        if ($this->is_adm === NULL)
+            $this->is_adm = MediawikiQuizzer::isTestAdmin();
+        if ($this->is_adm)
+            return true;
+        if ($name || !is_object($name) && strlen($name))
+        {
+            if (is_object($name))
+                $title = $name;
+            else
+                $title = Title::newFromText($name, NS_QUIZ);
+            if ($title && $title->exists() && $title->userCanRead())
+                return true;
+        }
+        return false;
     }
 
     /* SPECIAL PAGE ENTRY POINT */
@@ -622,7 +210,6 @@ class MediawikiQuizzerPage extends SpecialPage
         wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
-        $is_adm = MediawikiQuizzer::isTestAdmin();
         $mode = $args['mode'];
 
         $id = $par;
@@ -647,17 +234,8 @@ class MediawikiQuizzerPage extends SpecialPage
         }
         elseif ($mode == 'review')
         {
-            /* Review mode is available only to test administrators */
-            $allowed = false;
-            if ($is_adm)
-                $allowed = true;
-            elseif (strlen($args['quiz_name']))
-            {
-                $title = Title::newFromText($args['quiz_name'], NS_QUIZ);
-                if ($title && $title->exists() && $title->userCanRead())
-                    $allowed = true;
-            }
-            if ($allowed)
+            /* Review mode is available to test administrators and users who have access to source */
+            if (self::isAdminForTest($args['quiz_name']))
                 $this->review($args);
             else
             {
@@ -716,7 +294,7 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         global $wgTitle;
         $form = '';
-        $form .= wfMsg('mwquizzer-quiz-name').': ';
+        $form .= wfMsg('mwquizzer-quiz-id').': ';
         $form .= self::xelement('input', array('type' => 'text', 'name' => 'quiz_name', 'value' => $args['quiz_name'])) . ' ';
         $form .= Xml::submitButton(wfMsg('mwquizzer-select-tickets'));
         $form = self::xelement('form', array('action' => $wgTitle->getLocalUrl(array('mode' => 'review')), 'method' => 'POST'), $form);
@@ -1115,8 +693,7 @@ EOT;
         global $wgOut;
         $html = '';
 
-        $title = Title::newFromText($test['test_id'], NS_QUIZ);
-        $is_adm = MediawikiQuizzer::isTestAdmin() || $title && $title->userCanRead();
+        $is_adm = self::isAdminForTest($test['test_id']);
 
         /* TestInfo */
         $ti = wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
@@ -1460,9 +1037,7 @@ EOT;
 
         /* Display answers also for links from result review table (showtut=1)
            to users who are admins or have read access to quiz source */
-        $title = Title::newFromText($test['test_id'], NS_QUIZ);
-        $is_adm = MediawikiQuizzer::isTestAdmin() || $title && $title->userCanRead();
-        if ($test['test_mode'] == 'TUTOR' || $is_adm && $args['showtut'])
+        if ($test['test_mode'] == 'TUTOR' || $args['showtut'] && self::isAdminForTest($test['test_id']))
             $html .= $this->getTutorHtml($ticket, $test, $testresult);
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
@@ -1640,7 +1215,7 @@ EOT;
         $dbr = wfGetDB(DB_SLAVE);
         $info = array('mode' => 'review');
         $where = array('tk_end_time IS NOT NULL', 'tk_test_id=test_id');
-        if ($t = Title::newFromText($args['quiz_name'], NS_QUIZ))
+        if (strlen($args['quiz_name']) && ($t = Title::newFromText($args['quiz_name'], NS_QUIZ)))
         {
             $where['tk_test_id'] = mb_substr($t->getText(), 0, 32);
             $info['quiz_name'] = $t->getText();
@@ -1719,10 +1294,10 @@ EOT;
         $skin = $wgUser->getSkin();
         $html = '';
         $tr = '';
-        foreach (explode(' ', 'ticket-id quiz variant user start end duration ip score correct') as $i)
+        foreach (explode(' ', 'ticket-id quiz-id quiz variant user start end duration ip score correct') as $i)
             $tr .= self::xelement('th', NULL, wfMsg("mwquizzer-$i"));
         $html .= self::xelement('tr', NULL, $tr);
-        // ID[LINK] TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
+        // ID[LINK] TEST_ID TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
         foreach ($tickets as $i => $t)
         {
             $tr = array();
@@ -1731,7 +1306,6 @@ EOT;
                 'mode' => 'check',
                 'ticket_id' => $t['tk_id'],
                 'ticket_key' => $t['tk_key'],
-                'showtut' => 1,
             ))), $t['tk_id']);
             /* 2. Quiz name + link to its page + link to quiz form */
             if ($t['test_id'])
@@ -1742,12 +1316,16 @@ EOT;
                     $name = $t['test_id'];
                 $testtry = $wgTitle->getFullUrl(array('id' => $t['test_id']));
                 $testhref = Title::newFromText('Quiz:'.$t['tk_test_id'])->getFullUrl();
+                $tr[] = $t['test_id'];
                 $tr[] = self::xelement('a', array('href' => $testhref), $name) . ' (' .
                     self::xelement('a', array('href' => $testtry), wfMsg('mwquizzer-try')) . ')';
             }
             /* Or 2. Quiz ID in the case when it is not found */
             else
+            {
                 $tr[] = self::xelement('s', array('class' => 'mwq-dead'), $t['tk_test_id']);
+                $tr[] = '';
+            }
             /* 3. Variant CRC32 + link to printable version of this variant */
             $a = sprintf("%u", crc32($t['tk_variant']));
             $href = $wgTitle->getFullUrl(array(
@@ -1799,7 +1377,7 @@ EOT;
         global $wgTitle;
         $html = '';
         $html .= Xml::hidden('mode', 'review');
-        $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz-name').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
+        $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz-id').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-variant').': ', 'variant_hash_crc32', 'variant_hash_crc32', 10, $info['variant_hash_crc32']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-user').': ', 'user_text', 'user_text', 30, $info['user_text']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-start').': ', 'start_time_min', 'start_time_min', 19, $info['start_time_min']);
@@ -1812,12 +1390,12 @@ EOT;
         return $html;
     }
 
-    /* Review closed tickets */
+    /* Review closed tickets (completed attempts) */
     function review($args)
     {
         global $wgOut;
         $html = '';
-        $result = self::selectTickets($args, $dbr);
+        $result = self::selectTickets($args);
         $html .= self::selectTicketForm($result['info']);
         if ($result['total'])
             $html .= self::xelement('p', NULL, wfMsg('mwquizzer-ticket-count', $result['total'], 1 + $result['page']*$result['perpage'], count($result['tickets'])));

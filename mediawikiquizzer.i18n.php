@@ -18,6 +18,7 @@ $messages['en'] = array(
     'mwquizzer-actions'                 => '<p><a href="$2">Try the quiz "$1"</a> &nbsp; | &nbsp; <a href="$3">Printable version</a></p>',
     'mwquizzer-show-parselog'           => '[+] Show quiz parse log',
     'mwquizzer-hide-parselog'           => '[-] Hide quiz parse log',
+    'mwquizzer-complete-stats'          => 'Correct answers: $1/$2 ($3 %)',
 
     /* Errors */
     'mwquizzer-no-test-id-title'        => 'Quiz ID is undefined!',
@@ -84,7 +85,7 @@ Then click "Select results" again.',
     /* Names of various fields */
     'mwquizzer-ticket-id'               => 'Ticket ID',
     'mwquizzer-quiz'                    => 'Quiz',
-    'mwquizzer-quiz-name'               => 'Quiz name',
+    'mwquizzer-quiz-id'                 => 'Quiz ID',
     'mwquizzer-variant'                 => 'Variant',
     'mwquizzer-who'                     => 'Display name',
     'mwquizzer-user'                    => 'User',
@@ -124,6 +125,7 @@ $messages['ru'] = array(
     'mwquizzer-actions'                 => '<p><a href="$2">Пройти тест «$1»</a> &nbsp; | &nbsp; <a href="$3">Версия для печати</a></p>',
     'mwquizzer-show-parselog'           => '[+] Показать лог разбора страницы теста',
     'mwquizzer-hide-parselog'           => '[-] Скрыть лог разбора страницы теста',
+    'mwquizzer-complete-stats'          => 'Правильных ответов: $1/$2 ($3 %)',
 
     /* Ошибки */
     'mwquizzer-no-test-id-title'        => 'Не задан идентификатор теста!',
@@ -190,7 +192,7 @@ $messages['ru'] = array(
     /* Имена разных полей */
     'mwquizzer-ticket-id'               => 'ID попытки',
     'mwquizzer-quiz'                    => 'Тест',
-    'mwquizzer-quiz-name'               => 'ID теста',
+    'mwquizzer-quiz-id'                 => 'ID теста',
     'mwquizzer-variant'                 => 'Вариант',
     'mwquizzer-who'                     => 'Имя',
     'mwquizzer-user'                    => 'Пользователь',

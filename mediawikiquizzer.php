@@ -39,6 +39,14 @@ if (!$egMWQuizzerCertificateDir)
 if (!$egMWQuizzerCertificateUri)
     $egMWQuizzerCertificateUri = "images/generated/diplomas";
 
+// Percent of correct question completion to consider it "easy" (green hint)
+if (!$egMWQuizzerEasyQuestionCompl)
+    $egMWQuizzerEasyQuestionCompl = 80;
+
+// Percent of correct question completion to consider it "hard" (red hint)
+if (!$egMWQuizzerHardQuestionCompl)
+    $egMWQuizzerHardQuestionCompl = 30;
+
 /* END DEFAULT SETTINGS */
 
 require_once("mediawikiquizzer.i18n.php");
@@ -53,16 +61,21 @@ $wgExtensionCredits['specialpage'][] = array(
 
 $wgExtensionMessagesFiles['MediawikiQuizzer'] = $dir . 'mediawikiquizzer.i18n.php';
 $wgSpecialPages['MediawikiQuizzer'] = 'MediawikiQuizzerPage';
-$wgAutoloadClasses['MediawikiQuizzerPage'] = $dir . 'mediawikiquizzer.class.php';
-$wgAutoloadClasses['MediawikiQuizzerUpdater'] = $dir . 'mediawikiquizzer.class.php';
-$wgAutoloadClasses['DOMParseUtils'] = $dir . 'DOMParseUtils.php';
+$wgAutoloadClasses += array(
+    'MediawikiQuizzerPage'    => $dir . 'mediawikiquizzer.class.php',
+    'MediawikiQuizzerUpdater' => $dir . 'mediawikiquizzer.updater.php',
+    'DOMParseUtils'           => $dir . 'DOMParseUtils.php',
+);
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'MediawikiQuizzer::LoadExtensionSchemaUpdates';
 $wgHooks['ArticleSaveComplete'][] = 'MediawikiQuizzer::ArticleSaveComplete';
 $wgHooks['ArticleViewHeader'][] = 'MediawikiQuizzer::ArticleViewHeader';
+$wgHooks['DoEditSectionLink'][] = 'MediawikiQuizzer::DoEditSectionLink';
 $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
 
 class MediawikiQuizzer
 {
+    static $disableQuestionInfo = false;
+
     // Returns true if current user is a test administrator
     // and has all privileges for test system
     static function isTestAdmin()
@@ -138,6 +151,14 @@ class MediawikiQuizzer
         global $wgOut;
         if (self::isQuiz($t = $article->getTitle()))
             MediawikiQuizzerPage::quizArticleInfo($t->getText());
+        return true;
+    }
+
+    // Hook for displaying statistics near question titles
+    static function DoEditSectionLink($skin, $nt, $section, $tooltip, &$result)
+    {
+        if (!self::$disableQuestionInfo && self::isQuiz($nt))
+            MediawikiQuizzerPage::quizQuestionInfo($nt, $section, $result);
         return true;
     }
 
