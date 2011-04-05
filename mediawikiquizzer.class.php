@@ -219,6 +219,7 @@ class MediawikiQuizzerPage extends SpecialPage
             $id = $args['id_test']; // backward compatibility
         $id = str_replace('_', ' ', $id);
 
+        $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
         if (!self::$modes[$mode])
         {

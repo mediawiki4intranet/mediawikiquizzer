@@ -83,6 +83,8 @@ class MediawikiQuizzer
         global $wgUser, $egMWQuizzerAdmins, $egMWQuizzerIntraACLAdminGroup;
         if (!$wgUser->getId())
             return false;
+        if (in_array('bureaucrat', $wgUser->getGroups()))
+            return true;
         if ($egMWQuizzerAdmins && in_array($wgUser->getName(), $egMWQuizzerAdmins))
             return true;
         if ($egMWQuizzerIntraACLAdminGroup && class_exists('HACLGroup'))
