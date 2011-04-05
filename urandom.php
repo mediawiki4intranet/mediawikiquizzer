@@ -23,13 +23,13 @@ if (!function_exists('urandom'))
             {
                 $com = new COM('CAPICOM.Utilities.1');
                 if (method_exists($com, 'GetRandom'))
-		                $pr_bits = base64_decode($com->GetRandom($nbytes,0));
-    		        else
-		            {
-		                $com = new COM('System.Security.Cryptography.RNGCryptoServiceProvider');
-			              if (method_exists($com, 'GetBytes'))
-			                  $pr_bits = base64_decode($com->GetBytes($nbytes));
-			          }
+                    $pr_bits = base64_decode($com->GetRandom($nbytes,0));
+                else
+                {
+                    $com = new COM('System.Security.Cryptography.RNGCryptoServiceProvider');
+                    if (method_exists($com, 'GetBytes'))
+                        $pr_bits = base64_decode($com->GetBytes($nbytes));
+                }
             }
             catch (Exception $ex)
             {

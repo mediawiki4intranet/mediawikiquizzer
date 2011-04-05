@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * Quizzer extension for MediaWiki
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,6 +14,30 @@
  */
 
 require_once 'urandom.php';
+
+/**
+ * Here are 2 classes: (1) MediawikiQuizzerUpdater and (2) MediawikiQuizzerPage.
+ *
+ * (1) is responsible for parsing quiz articles and writing parsed quizzes into DB.
+ * It is done using a recursive DOM parser and DOMParseUtils class.
+ *
+ * (2) implements the special page Special:MediawikiQuizzer.
+ * It has 4 modes of execution:
+ * (a) mode=show, handled by showTest()
+ *     Displays a testing form with random test variant.
+ * (b) mode=check, handled by checkTest()
+ *     Handles "Send results" click on testing form - saves results
+ *     into database and displays user results, completion certificate,
+ *     and optionally the list of correct/incorrect articles if test type
+ *     is TUTOR or if &showtut=1 and user is admin or has read access
+ *     to the quiz article.
+ * (c) mode=print, handled by printTest()
+ *     Displays printable version of a random or given variant of the test.
+ *     Correct answers are displayed to administrators and also to users who
+ *     have read access to the quiz article.
+ * (d) mode=review, handled by review()
+ *     Test results review mode. Is available to administrators
+ */
 
 class MediawikiQuizzerUpdater
 {
@@ -608,8 +632,12 @@ class MediawikiQuizzerPage extends SpecialPage
             $id = $args['id_test']; // backward compatibility
         $id = str_replace('_', ' ', $id);
 
+        $default_mode = false;
         if (!self::$modes[$mode])
+        {
+            $default_mode = true;
             $mode = $is_adm && !$id ? 'review' : 'show';
+        }
 
         if ($mode == 'check')
         {
@@ -620,10 +648,26 @@ class MediawikiQuizzerPage extends SpecialPage
         elseif ($mode == 'review')
         {
             /* Review mode is available only to test administrators */
+            $allowed = false;
             if ($is_adm)
+                $allowed = true;
+            elseif (strlen($args['quiz_name']))
+            {
+                $title = Title::newFromText($args['quiz_name'], NS_QUIZ);
+                if ($title && $title->exists() && $title->userCanRead())
+                    $allowed = true;
+            }
+            if ($allowed)
                 $this->review($args);
             else
-                $wgOut->showErrorPage('mwquizzer-review-denied-title', 'mwquizzer-review-denied-text');
+            {
+                $wgOut->setRobotPolicy('noindex,nofollow');
+                $wgOut->setArticleRelated(false);
+                $wgOut->enableClientCache(false);
+                $wgOut->addWikiMsg(strlen($args['quiz_name']) ? 'mwquizzer-review-denied-quiz' : 'mwquizzer-review-denied-all');
+                $wgOut->addHTML($this->getSelectTestForReviewForm($args));
+                $wgOut->setPageTitle(wfMsg('mwquizzer-review-denied-title'));
+            }
             return;
         }
 
@@ -639,7 +683,17 @@ class MediawikiQuizzerPage extends SpecialPage
         /* Raise error when no test is specified for mode=print or mode=show */
         if (!$id)
         {
-            $wgOut->showErrorPage('mwquizzer-no-test-id-title', 'mwquizzer-no-test-id-text');
+            $wgOut->setRobotPolicy('noindex,nofollow');
+            $wgOut->setArticleRelated(false);
+            $wgOut->enableClientCache(false);
+            if ($default_mode)
+            {
+                $wgOut->addWikiMsg('mwquizzer-review-option');
+                $wgOut->addHTML($this->getSelectTestForReviewForm($args));
+            }
+            else
+                $wgOut->addWikiMsg('mwquizzer-no-test-id-text');
+            $wgOut->setPageTitle(wfMsg('mwquizzer-no-test-id-title'));
             return;
         }
 
@@ -655,6 +709,18 @@ class MediawikiQuizzerPage extends SpecialPage
             $this->printTest($test, $args);
         else
             $this->showTest($test, $args);
+    }
+
+    /* Return HTML content for "Please select test to review results" form */
+    static function getSelectTestForReviewForm($args)
+    {
+        global $wgTitle;
+        $form = '';
+        $form .= wfMsg('mwquizzer-quiz-name').': ';
+        $form .= self::xelement('input', array('type' => 'text', 'name' => 'quiz_name', 'value' => $args['quiz_name'])) . ' ';
+        $form .= Xml::submitButton(wfMsg('mwquizzer-select-tickets'));
+        $form = self::xelement('form', array('action' => $wgTitle->getLocalUrl(array('mode' => 'review')), 'method' => 'POST'), $form);
+        return $form;
     }
 
     /* Question must have at least 1 correct and 1 incorrect choice */
@@ -1040,8 +1106,8 @@ EOT;
      * - a printable empty table for filling it with answer numbers
      * - a table similar to the previous, but filled with correct answer numbers and question labels ("check-list")
      *   (question label is intended to briefly describe question subject)
-     * Check list is shown only to test administrators and users who can read
-     * the test source article according to HaloACL rights, if HaloACL is enabled.
+     * Check list is shown only to test administrators and users who can read the quiz source article.
+     * Note that read access to articles included into the quiz are not checked.
      * CSS page-break styles are specified so you can print this page.
      */
     function printTest($test, $args)
@@ -1049,9 +1115,8 @@ EOT;
         global $wgOut;
         $html = '';
 
-        $title = Title::newFromText('Quiz:'.$test['id']);
-        $is_adm = MediawikiQuizzer::isTestAdmin() ||
-            $title && method_exists($title, 'userCanReadEx') && $title->userCanReadEx();
+        $title = Title::newFromText($test['test_id'], NS_QUIZ);
+        $is_adm = MediawikiQuizzer::isTestAdmin() || $title && $title->userCanRead();
 
         /* TestInfo */
         $ti = wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
@@ -1393,7 +1458,11 @@ EOT;
             $html .= $this->getCertificateHtml($ticket, $test, $testresult);
         }
 
-        if ($test['test_mode'] == 'TUTOR')
+        /* Display answers also for links from result review table (showtut=1)
+           to users who are admins or have read access to quiz source */
+        $title = Title::newFromText($test['test_id'], NS_QUIZ);
+        $is_adm = MediawikiQuizzer::isTestAdmin() || $title && $title->userCanRead();
+        if ($test['test_mode'] == 'TUTOR' || $is_adm && $args['showtut'])
             $html .= $this->getTutorHtml($ticket, $test, $testresult);
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
@@ -1571,6 +1640,11 @@ EOT;
         $dbr = wfGetDB(DB_SLAVE);
         $info = array('mode' => 'review');
         $where = array('tk_end_time IS NOT NULL', 'tk_test_id=test_id');
+        if ($t = Title::newFromText($args['quiz_name'], NS_QUIZ))
+        {
+            $where['tk_test_id'] = mb_substr($t->getText(), 0, 32);
+            $info['quiz_name'] = $t->getText();
+        }
         $crc = $args['variant_hash_crc32'];
         if (preg_match('/^\d+$/s', $crc))
         {
@@ -1657,6 +1731,7 @@ EOT;
                 'mode' => 'check',
                 'ticket_id' => $t['tk_id'],
                 'ticket_key' => $t['tk_key'],
+                'showtut' => 1,
             ))), $t['tk_id']);
             /* 2. Quiz name + link to its page + link to quiz form */
             if ($t['test_id'])
@@ -1724,6 +1799,7 @@ EOT;
         global $wgTitle;
         $html = '';
         $html .= Xml::hidden('mode', 'review');
+        $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz-name').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-variant').': ', 'variant_hash_crc32', 'variant_hash_crc32', 10, $info['variant_hash_crc32']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-user').': ', 'user_text', 'user_text', 30, $info['user_text']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-start').': ', 'start_time_min', 'start_time_min', 19, $info['start_time_min']);

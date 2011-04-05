@@ -21,13 +21,30 @@ $messages['en'] = array(
 
     /* Errors */
     'mwquizzer-no-test-id-title'        => 'Quiz ID is undefined!',
-    'mwquizzer-no-test-id-text'         => 'You opened a hyperlink not containing quiz ID.',
+    'mwquizzer-no-test-id-text'         => 'You opened a link without valid quiz ID to run.',
     'mwquizzer-test-not-found-title'    => 'Quiz not found',
     'mwquizzer-test-not-found-text'     => 'Quiz with this ID is not found in database!',
     'mwquizzer-check-no-ticket-title'   => 'Incorrect check link',
     'mwquizzer-check-no-ticket-text'    => 'You want to check the test, but no correct ticket ID is present in the request.<br />Try <a href="$2">the quiz «$1»</a> again.',
-    'mwquizzer-review-denied-title'     => 'Access denied',
-    'mwquizzer-review-denied-text'      => 'Quiz review is available only to MWQuizzer administrators.',
+    'mwquizzer-review-denied-title'     => 'Review access denied',
+    'mwquizzer-review-option'           =>
+'You opened a link without valid quiz ID to run.
+
+Maybe you\'ve meant to open quiz result review form?
+
+If so, enter the ID (article title) of a test \'\'\'to source of which you do have read\'\'\' into the field below and click "Select results".',
+    'mwquizzer-review-denied-all'       =>
+'Reviewing completion attempts for \'\'\'all\'\'\' quizzes is available only for MWQuizzer administrators.
+
+However, you can review completion attempts for quizzes to source of which you do have access.
+
+To do so, enter the ID (article title) of such a test into the field below and click "Select results".',
+    'mwquizzer-review-denied-quiz'      =>
+'Reviewing completion attempts for \'\'\'this\'\'\' quiz is not available for only.
+
+Try entering the ID (article title) of quiz to source of which you do have access.
+
+Then click "Select results" again.',
 
     'mwquizzer-pagetitle'               => '$1 — questions',
     'mwquizzer-print-pagetitle'         => '$1 — printable version',
@@ -59,7 +76,7 @@ $messages['en'] = array(
     'mwquizzer-congratulations'         => 'You passed the quiz! Insert the following HTML code into your blog or homepage:',
     'mwquizzer-explanation'             => 'Explanation',
     'mwquizzer-anonymous'               => 'Anonymous',
-    'mwquizzer-select-tickets'          => 'Select',
+    'mwquizzer-select-tickets'          => 'Select results',
     'mwquizzer-ticket-count'            => 'Found $1, showing $3 from $2.',
     'mwquizzer-no-tickets'              => 'No tickets found.',
     'mwquizzer-pages'                   => 'Pages: ',
@@ -67,6 +84,7 @@ $messages['en'] = array(
     /* Names of various fields */
     'mwquizzer-ticket-id'               => 'Ticket ID',
     'mwquizzer-quiz'                    => 'Quiz',
+    'mwquizzer-quiz-name'               => 'Quiz name',
     'mwquizzer-variant'                 => 'Variant',
     'mwquizzer-who'                     => 'Display name',
     'mwquizzer-user'                    => 'User',
@@ -109,13 +127,30 @@ $messages['ru'] = array(
 
     /* Ошибки */
     'mwquizzer-no-test-id-title'        => 'Не задан идентификатор теста!',
-    'mwquizzer-no-test-id-text'         => 'Вы перешли по ссылке, не содержащей идентификатор теста.',
+    'mwquizzer-no-test-id-text'         => 'Вы перешли по ссылке, не содержащей идентификатор теста для запуска.',
     'mwquizzer-test-not-found-title'    => 'Тест не найден',
     'mwquizzer-test-not-found-text'     => 'Тест с этим номером не определен!',
     'mwquizzer-check-no-ticket-title'   => 'Неверная ссылка',
     'mwquizzer-check-no-ticket-text'    => 'Запрошен режим проверки, но идентификатор вашей попытки прохождения теста не задан или неверен.<br />Попробуйте <a href="$2">пройти тест «$1»</a> заново.',
-    'mwquizzer-review-denied-title'     => 'Доступ запрещён',
-    'mwquizzer-review-denied-text'      => 'Просмотр результатов доступен только администраторам системы тестирования.',
+    'mwquizzer-review-denied-title'     => 'Просмотр результатов запрещён',
+    'mwquizzer-review-option'           =>
+'Вы перешли по ссылке, не содержащей идентификатор теста для запуска.
+
+Возможно, вы хотели перейти к форме просмотра результатов (только для теста, к которому имеете доступ)?
+
+Если это действительно так, введите ID (название вики-статьи) теста, к которому имеете доступ, в поле ниже и нажмите «Выбрать результаты».',
+    'mwquizzer-review-denied-all'       =>
+'Просмотр результатов по \'\'\'всем\'\'\' тестам доступен только администраторам системы тестирования.
+
+Тем не менее, вы можете просмотреть результаты по тем тестам, к исходному коду (вики-статье) которых имеете доступ.
+
+Для этого введите ID (название вики-статьи) теста в поле ниже и нажмите «Выбрать результаты».',
+    'mwquizzer-review-denied-quiz'      =>
+'Вам запрещён просмотр результатов по \'\'\'выбранному\'\'\' тесту.
+
+Введите ID (название вики-статьи) теста, к исходному коду (вики-статье) которого имеете доступ.
+
+Далее снова нажмите «Выбрать результаты».',
 
     'mwquizzer-pagetitle'               => '$1 — вопросы',
     'mwquizzer-print-pagetitle'         => '$1 — версия для печати',
@@ -147,7 +182,7 @@ $messages['ru'] = array(
     'mwquizzer-congratulations'         => 'Вы успешно прошли тест! Можете вставить следующий HTML-код в ваш блог или сайт:',
     'mwquizzer-explanation'             => 'Пояснение',
     'mwquizzer-anonymous'               => 'Анонимный',
-    'mwquizzer-select-tickets'          => 'Выбрать',
+    'mwquizzer-select-tickets'          => 'Выбрать результаты',
     'mwquizzer-ticket-count'            => 'Найдено $1, показано $3, начиная с №$2.',
     'mwquizzer-no-tickets'              => 'Не найдено ни одной попытки прохождения.',
     'mwquizzer-pages'                   => 'Страницы: ',
@@ -155,6 +190,7 @@ $messages['ru'] = array(
     /* Имена разных полей */
     'mwquizzer-ticket-id'               => 'ID попытки',
     'mwquizzer-quiz'                    => 'Тест',
+    'mwquizzer-quiz-name'               => 'ID теста',
     'mwquizzer-variant'                 => 'Вариант',
     'mwquizzer-who'                     => 'Имя',
     'mwquizzer-user'                    => 'Пользователь',

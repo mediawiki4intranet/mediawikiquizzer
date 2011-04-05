@@ -1,29 +1,56 @@
 <?php
 
-/*
+/**
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
  * @author Stas Fomin <stas-fomin@yandex.ru>
+ * @author Vitaliy Filippov <vitalif@mail.ru>
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
  */
 
 if (!defined('MEDIAWIKI'))
     die();
+$dir = dirname(__FILE__) . '/';
+
+/* DEFAULT SETTINGS GO HERE */
+
+// If set, this value is treated as IntraACL/HaloACL "Test admin" group name
+// This must be a complete name, with "Group/" prefix
+// See http://wiki.4intra.net/IntraACL for extension details
+if (!$egMWQuizzerIntraACLAdminGroup)
+    $egMWQuizzerIntraACLAdminGroup = false;
+
+// If set to a list of usernames, users with these names are also treated as test administrators
+if (!$egMWQuizzerAdmins)
+    $egMWQuizzerAdmins = array('WikiSysop');
+
+// Path to diploma.png successful test completion "certificate" file
+if (!$egMWQuizzerCertificateTemplate)
+    $egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
+
+// Directory where the generated "certificates" are placed
+if (!$egMWQuizzerCertificateDir)
+    $egMWQuizzerCertificateDir = str_replace("\\", "/", dirname(dirname(realpath($dir)))."/images/generated/diplomas");
+
+// Path to this directory
+if (!$egMWQuizzerCertificateUri)
+    $egMWQuizzerCertificateUri = "images/generated/diplomas";
+
+/* END DEFAULT SETTINGS */
 
 require_once("mediawikiquizzer.i18n.php");
 
 $wgExtensionCredits['specialpage'][] = array(
     'name'        => 'MediawikiQuizzer',
-    'author'      => ' Stas Fomin ',
-    'version'     => '1.32 (2010-03-24)',
+    'author'      => ' Stas Fomin, Vitaliy Filippov ',
+    'version'     => '1.4 (2011-04-04)',
     'description' => 'Quiz System for MediaWiki',
-    'url'         => 'http://lib.custis.ru/index.php/MediawikiQuizzer'
+    'url'         => 'http://wiki.4intra.net/MediawikiQuizzer'
 );
 
-$dir = dirname(__FILE__) . '/';
 $wgExtensionMessagesFiles['MediawikiQuizzer'] = $dir . 'mediawikiquizzer.i18n.php';
 $wgSpecialPages['MediawikiQuizzer'] = 'MediawikiQuizzerPage';
 $wgAutoloadClasses['MediawikiQuizzerPage'] = $dir . 'mediawikiquizzer.class.php';
@@ -34,35 +61,33 @@ $wgHooks['ArticleSaveComplete'][] = 'MediawikiQuizzer::ArticleSaveComplete';
 $wgHooks['ArticleViewHeader'][] = 'MediawikiQuizzer::ArticleViewHeader';
 $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
 
-/* DEFAULT SETTINGS GO HERE */
-
-if (!$egMWQuizzerAdmins)
-    $egMWQuizzerAdmins = array('WikiSysop');
-
-if (!$egMWQuizzerCertificateTemplate)
-    $egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
-
-if (!$egMWQuizzerCertificateDir)
-    $egMWQuizzerCertificateDir = str_replace("\\", "/", dirname(dirname(realpath($dir)))."/images/generated/diplomas");
-
-if (!$egMWQuizzerCertificateUri)
-    $egMWQuizzerCertificateUri = "images/generated/diplomas";
-
-/* END DEFAULT SETTINGS */
-
 class MediawikiQuizzer
 {
+    // Returns true if current user is a test administrator
+    // and has all privileges for test system
     static function isTestAdmin()
     {
-        global $wgUser, $egMWQuizzerAdmins;
-        return $wgUser->getId() && in_array($wgUser->getName(), $egMWQuizzerAdmins);
+        global $wgUser, $egMWQuizzerAdmins, $egMWQuizzerIntraACLAdminGroup;
+        if (!$wgUser->getId())
+            return false;
+        if ($egMWQuizzerAdmins && in_array($wgUser->getName(), $egMWQuizzerAdmins))
+            return true;
+        if ($egMWQuizzerIntraACLAdminGroup)
+        {
+            $intraacl_group = HACLGroup::newFromName($egMWQuizzerIntraACLAdminGroup, false);
+            if ($intraacl_group && $intraacl_group->hasUserMember($wgUser, true))
+                return true;
+        }
+        return false;
     }
 
-    static function isQuiz($t)
+    // Returns true if Title $t corresponds to an article which defines a quiz
+    static function isQuiz(Title $t)
     {
         return $t && $t->getNamespace() == NS_QUIZ && strpos($t->getText(), '/') === false;
     }
 
+    // Setup MediaWiki namespace for Quizzer
     static function setupNamespace($index)
     {
         $index = $index & ~1;
@@ -70,6 +95,7 @@ class MediawikiQuizzer
         define('NS_QUIZ_TALK', $index+1);
     }
 
+    // Initialize extension
     static function init()
     {
         if (!defined('NS_QUIZ'))
@@ -81,6 +107,7 @@ class MediawikiQuizzer
         $wgNamespaceAliases['Quiz_talk'] = NS_QUIZ_TALK;
     }
 
+    // Hook for maintenance/update.php
     static function LoadExtensionSchemaUpdates()
     {
         global $wgExtNewTables, $wgExtNewFields;
@@ -91,6 +118,7 @@ class MediawikiQuizzer
         return true;
     }
 
+    // Quiz update hook
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit)
     {
         if (self::isQuiz($article->getTitle()))
@@ -104,6 +132,7 @@ class MediawikiQuizzer
         return true;
     }
 
+    // Quiz display hook
     static function ArticleViewHeader(&$article, &$outputDone, &$pcache)
     {
         global $wgOut;
@@ -112,7 +141,9 @@ class MediawikiQuizzer
         return true;
     }
 
-    /* Get quizzes which include given title */
+    // Get quizzes which include given title
+    // Now does not return quizzes which include given title through
+    // an article which is not inside Quiz namespace for performance reasons
     static function getQuizLinksTo($title)
     {
         $id_seen = array();
