@@ -129,16 +129,16 @@ class MediawikiQuizzerPage extends SpecialPage
             foreach ($r as $obj)
             {
                 preg_match('/\\|(\d+)$/', $obj->qn_anchor, $m);
-                if ($m[1] == 7)
-                    var_dump($obj);
                 self::$questionInfoCache[$k][$m[1]] = $obj;
             }
             if (!self::$questionInfoCache[$k])
                 self::$questionInfoCache[$k] = NULL;
         }
+        preg_match('/\d+/', $section, $m);
+        $sectnum = $m[0];
         /* Append colored statistic hint to editsection span */
         if (self::$questionInfoCache[$k] &&
-            ($obj = self::$questionInfoCache[$k][$section]))
+            ($obj = self::$questionInfoCache[$k][$sectnum]))
         {
             $style = '';
             if ($obj->complete_count)

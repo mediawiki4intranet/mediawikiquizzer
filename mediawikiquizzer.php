@@ -159,7 +159,7 @@ class MediawikiQuizzer
     // Hook for displaying statistics near question titles
     static function DoEditSectionLink($skin, $nt, $section, $tooltip, &$result)
     {
-        if (!self::$disableQuestionInfo && self::isQuiz($nt))
+        if (!self::$disableQuestionInfo && $nt->getNamespace() == NS_QUIZ)
             MediawikiQuizzerPage::quizQuestionInfo($nt, $section, $result);
         return true;
     }
