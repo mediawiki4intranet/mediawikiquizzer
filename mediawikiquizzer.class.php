@@ -1305,6 +1305,7 @@ EOT;
             /* 1. Ticket ID + link to standard results page */
             $tr[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array(
                 'mode' => 'check',
+                'showtut' => 1,
                 'ticket_id' => $t['tk_id'],
                 'ticket_key' => $t['tk_key'],
             ))), $t['tk_id']);
