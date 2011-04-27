@@ -33,7 +33,7 @@ if (!$egMWQuizzerCertificateTemplate)
 
 // Directory where the generated "certificates" are placed
 if (!$egMWQuizzerCertificateDir)
-    $egMWQuizzerCertificateDir = str_replace("\\", "/", dirname(dirname(realpath($dir)))."/images/generated/diplomas");
+    $egMWQuizzerCertificateDir = $IP . '/images/generated/diplomas';
 
 // Path to this directory
 if (!$egMWQuizzerCertificateUri)
