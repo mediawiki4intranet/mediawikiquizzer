@@ -75,6 +75,7 @@ $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
 class MediawikiQuizzer
 {
     static $disableQuestionInfo = false;
+    static $updated = array();
 
     // Returns true if current user is a test administrator
     // and has all privileges for test system
@@ -116,10 +117,15 @@ class MediawikiQuizzer
         if (!defined('NS_QUIZ'))
             die("Please add the following line:\nMediawikiQuizzer::setupNamespace(XXX);\nto your LocalSettings.php, where XXX is an available integer index for Quiz namespace");
         global $wgExtraNamespaces, $wgCanonicalNamespaceNames, $wgNamespaceAliases, $wgParser;
+        global $wgVersion, $wgHooks;
         $wgExtraNamespaces[NS_QUIZ] = $wgCanonicalNamespaceNames[NS_QUIZ] = 'Quiz';
         $wgExtraNamespaces[NS_QUIZ_TALK] = $wgCanonicalNamespaceNames[NS_QUIZ_TALK] = 'Quiz_talk';
         $wgNamespaceAliases['Quiz'] = NS_QUIZ;
         $wgNamespaceAliases['Quiz_talk'] = NS_QUIZ_TALK;
+        if ($wgVersion < '1.14')
+            $wgHooks['NewRevisionFromEditComplete'][] = 'MediawikiQuizzer::NewRevisionFromEditComplete';
+        else
+            $wgHooks['ArticleEditUpdates'][] = 'MediawikiQuizzer::ArticleEditUpdates';
     }
 
     // Hook for maintenance/update.php
@@ -133,17 +139,37 @@ class MediawikiQuizzer
         return true;
     }
 
-    // Quiz update hook
-    static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit)
+    // Quiz update hook, updates the quiz on every save, even when no new revision was created
+    static function ArticleSaveComplete($article, $user, $text, $summary, $minoredit)
     {
-        if (self::isQuiz($article->getTitle()))
-            MediawikiQuizzerUpdater::updateQuiz($article, $text);
-        /* Update quizzes which include updated article */
-        foreach (self::getQuizLinksTo($article->getTitle()) as $template)
+        if (self::$updated[$article->getId()])
+            return true;
+        if ($article->getTitle()->getNamespace() == NS_QUIZ)
         {
-            $article = new Article($template);
-            MediawikiQuizzerUpdater::updateQuiz($article, $article->getContent());
+            if (self::isQuiz($article->getTitle()))
+                MediawikiQuizzerUpdater::updateQuiz($article, $text);
+            /* Update quizzes which include updated article */
+            foreach (self::getQuizLinksTo($article->getTitle()) as $template)
+            {
+                $article = new Article($template);
+                MediawikiQuizzerUpdater::updateQuiz($article, $article->getContent());
+            }
+            self::$updated[$article->getId()] = true;
         }
+        return true;
+    }
+
+    // Another quiz update hook, for MW < 1.14, called when a new revision is created
+    static function NewRevisionFromEditComplete($article, $rev, $baseID, $user)
+    {
+        self::ArticleSaveComplete($article, NULL, $article->getContent(), NULL, NULL);
+        return true;
+    }
+
+    // Another quiz update hook, for MW >= 1.14, called when a new revision is created
+    static function ArticleEditUpdates($article, $editInfo, $changed)
+    {
+        self::ArticleSaveComplete($article, NULL, $editInfo->newText, NULL, NULL);
         return true;
     }
 
