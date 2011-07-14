@@ -1341,7 +1341,7 @@ EOT;
             $tr[] = $a;
             /* 4. User link and/or name/displayname */
             if ($t['tk_user_id'])
-                $tr[] = $skin->link(Title::newFromText('User:'.$t['tk_user_text']), $t['tk_displayname']);
+                $tr[] = $skin->link(Title::newFromText('User:'.$t['tk_user_text']), $t['tk_displayname'] ? $t['tk_displayname'] : $t['tk_user_text']);
             elseif ($t['tk_displayname'])
                 $tr[] = $t['tk_displayname'];
             else
