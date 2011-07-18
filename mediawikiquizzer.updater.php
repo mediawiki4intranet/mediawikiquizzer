@@ -86,16 +86,16 @@ class MediawikiQuizzerUpdater
         $qn_regexp = array();
         self::$test_keys = array_keys(self::$test_field_types);
         foreach (self::$test_keys as $k)
-            $test_regexp[] = '('.wfMsgReal("mwquizzer-parse-test_$k", false, true, $lang, false).')';
+            $test_regexp[] = '('.wfMsgReal("mwquizzer-parse-test_$k", NULL, true, $lang, false).')';
         foreach (self::$qn_keys as $k)
-            $qn_regexp[] = '('.wfMsgReal("mwquizzer-parse-$k", false, true, $lang, false).')';
+            $qn_regexp[] = '('.wfMsgReal("mwquizzer-parse-$k", NULL, true, $lang, false).')';
         $test_regexp_nq = $test_regexp;
-        array_unshift($test_regexp, '('.wfMsgReal('mwquizzer-parse-question', false, true, $lang, false).')');
+        array_unshift($test_regexp, '('.wfMsgReal('mwquizzer-parse-question', NULL, true, $lang, false).')');
         self::$regexp_test = str_replace('/', '\\/', implode('|', $test_regexp));
         self::$regexp_test_nq = '()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
         self::$regexp_question = str_replace('/', '\\/', implode('|', $qn_regexp));
-        self::$regexp_true = wfMsgReal('mwquizzer-parse-true', false, true, $lang, false);
-        self::$regexp_correct = wfMsgReal('mwquizzer-parse-correct', false, true, $lang, false);
+        self::$regexp_true = wfMsgReal('mwquizzer-parse-true', NULL, true, $lang, false);
+        self::$regexp_correct = wfMsgReal('mwquizzer-parse-correct', NULL, true, $lang, false);
     }
 
     /* Transform quiz field value according to its type */
@@ -472,8 +472,9 @@ class MediawikiQuizzerUpdater
             else
             {
                 $row['test_log'] = preg_replace('/^.*?No questions found in this revision[^\n]*\n/so', '', $row['test_log']);
-                $quiz['test_log'] = "[ERROR] Article revision: ".$article->getLatest()."\n".
-                    "[ERROR] No questions found in this revision, test not updated!"."\n";
+                $row['test_log'] = "[ERROR] Article revision: ".$article->getLatest()."\n".
+                    "[ERROR] No questions found in this revision, test not updated!"."\n".
+                    $row['test_log'];
                 $dbw->update(
                     'mwq_test', array('test_log' => $row['test_log']),
                     array('test_id' => $row['test_id']), __METHOD__
