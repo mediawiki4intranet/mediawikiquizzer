@@ -42,7 +42,7 @@ class MediawikiQuizzerUpdater
         'test_autofilter_success_percent' => 90,
     );
     static $test_keys;
-    static $regexps;
+    static $regexp_test, $regexp_test_nq, $regexp_question, $regexp_true, $regexp_correct;
     static $qn_keys = array('choice', 'choices', 'correct', 'corrects', 'label', 'explanation', 'comments');
 
     /* Parse wiki-text $text without TOC, heading numbers and EditSection links */
@@ -65,23 +65,37 @@ class MediawikiQuizzerUpdater
         return $html;
     }
 
-    /* Build regular expressions to match headings */
+    /**
+     * Build regular expressions to match headings
+     *
+     * Regular expressions for parsing headings and list items
+     * are built from parts taken from localisation messages
+     * for $egMWQuizzerContLang or wiki content language.
+     * These messages must represent regexps that don't capture anything
+     * in (). I.e., always use (?:...) instead of (...) inside them.
+     * This is because they are united and N'th captured field tells
+     * mediawikiquizzer that N'th regexp is captured. Using this,
+     * field names are determined.
+     */
     static function getRegexps()
     {
+        global $egMWQuizzerContLang;
+        $lang = $egMWQuizzerContLang ? $egMWQuizzerContLang : true;
         wfLoadExtensionMessages('MediawikiQuizzer');
         $test_regexp = array();
         $qn_regexp = array();
         self::$test_keys = array_keys(self::$test_field_types);
         foreach (self::$test_keys as $k)
-            $test_regexp[] = '('.wfMsgNoTrans("mwquizzer-parse-test_$k").')';
+            $test_regexp[] = '('.wfMsgReal("mwquizzer-parse-test_$k", false, true, $lang, false).')';
         foreach (self::$qn_keys as $k)
-            $qn_regexp[] = '('.wfMsgNoTrans("mwquizzer-parse-$k").')';
+            $qn_regexp[] = '('.wfMsgReal("mwquizzer-parse-$k", false, true, $lang, false).')';
         $test_regexp_nq = $test_regexp;
-        array_unshift($test_regexp, '('.wfMsgNoTrans('mwquizzer-parse-question').')');
-        $test_regexp = str_replace('/', '\\/', implode('|', $test_regexp));
-        $test_regexp_nq = '()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
-        $qn_regexp = str_replace('/', '\\/', implode('|', $qn_regexp));
-        self::$regexps = array($test_regexp, $test_regexp_nq, $qn_regexp);
+        array_unshift($test_regexp, '('.wfMsgReal('mwquizzer-parse-question', false, true, $lang, false).')');
+        self::$regexp_test = str_replace('/', '\\/', implode('|', $test_regexp));
+        self::$regexp_test_nq = '()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
+        self::$regexp_question = str_replace('/', '\\/', implode('|', $qn_regexp));
+        self::$regexp_true = wfMsgReal('mwquizzer-parse-true', false, true, $lang, false);
+        self::$regexp_correct = wfMsgReal('mwquizzer-parse-correct', false, true, $lang, false);
     }
 
     /* Transform quiz field value according to its type */
@@ -95,7 +109,7 @@ class MediawikiQuizzerUpdater
                 $value = strpos(strtolower($value), 'tutor') !== false ? 'TUTOR' : 'TEST';
             elseif ($t == 3) /* boolean */
             {
-                $re = str_replace('/', '\\/', wfMsgNoTrans('mwquizzer-parse-true'));
+                $re = str_replace('/', '\\/', self::$regexp_true);
                 $value = preg_match("/$re/uis", $value) ? 1 : 0;
             }
             elseif ($t == 4) /* integer */
@@ -200,7 +214,7 @@ class MediawikiQuizzerUpdater
                     }
                     $log_el = $log_el . self::textlog($e) . $log_el;
                     /* Match question/parameter section title */
-                    $chk = DOMParseUtils::checkNode($e, self::$regexps[0], true);
+                    $chk = DOMParseUtils::checkNode($e, self::$regexp_test, true);
                     if ($chk)
                     {
                         /* Question section */
@@ -262,7 +276,7 @@ class MediawikiQuizzerUpdater
                     }
                     elseif ($st == self::ST_QUESTION || $st == self::ST_CHOICE || $st == self::ST_CHOICES)
                     {
-                        $chk = DOMParseUtils::checkNode($e, self::$regexps[2], true);
+                        $chk = DOMParseUtils::checkNode($e, self::$regexp_question, true);
                         if ($chk)
                         {
                             /* Question sub-section */
@@ -332,7 +346,7 @@ class MediawikiQuizzerUpdater
                 /* <dt> for a parameter */
                 elseif (($st == self::ST_OUTER || $st == self::ST_PARAM_DD) && $e->nodeName == 'dt')
                 {
-                    $chk = DOMParseUtils::checkNode($e, self::$regexps[1], true);
+                    $chk = DOMParseUtils::checkNode($e, self::$regexp_test_nq, true);
                     $log_el = '; ' . trim(strip_tags(DOMParseUtils::saveChildren($e))) . ':';
                     if ($chk)
                     {
@@ -381,7 +395,7 @@ class MediawikiQuizzerUpdater
                     /* <ul>/<ol> with single <li> inside choice */
                     $log .= "[INFO] Stripping single-item list from single-choice section";
                     $e = $e->childNodes->item(0);
-                    $chk = DOMParseUtils::checkNode($e, wfMsgNoTrans('mwquizzer-parse-correct'), true);
+                    $chk = DOMParseUtils::checkNode($e, self::$regexp_correct, true);
                     if ($chk)
                     {
                         $e = $chk[0];
@@ -439,10 +453,35 @@ class MediawikiQuizzerUpdater
     {
         $html = self::parse($article, $text);
         $quiz = self::parseQuiz2($html);
-        $quiz['test_log'] = "[INFO] Article revision: ".$article->getLatest()."\n".$quiz['test_log'];
         $quiz['test_id'] = mb_substr($article->getTitle()->getText(), 0, 32);
         if (!$quiz['questions'])
+        {
+            // No questions found.
+            // Append error to the top of quiz test_log and return.
+            $dbw = wfGetDB(DB_MASTER);
+            $res = $dbw->select('mwq_test', '*', array('test_id' => $quiz['test_id']), __METHOD__);
+            $row = $dbw->fetchRow($res);
+            if (!$row)
+            {
+                unset($quiz['questions']);
+                $quiz['test_log'] = "[ERROR] Article revision: ".$article->getLatest()."\n".
+                    "[ERROR] No questions found in this revision, test not parsed!"."\n".
+                    $quiz['test_log'];
+                $dbw->insert('mwq_test', $quiz, __METHOD__);
+            }
+            else
+            {
+                $row['test_log'] = preg_replace('/^.*?No questions found in this revision[^\n]*\n/so', '', $row['test_log']);
+                $quiz['test_log'] = "[ERROR] Article revision: ".$article->getLatest()."\n".
+                    "[ERROR] No questions found in this revision, test not updated!"."\n";
+                $dbw->update(
+                    'mwq_test', array('test_log' => $row['test_log']),
+                    array('test_id' => $row['test_id']), __METHOD__
+                );
+            }
             return;
+        }
+        $quiz['test_log'] = "[INFO] Article revision: ".$article->getLatest()."\n".$quiz['test_log'];
         $t2q = array();
         $qkeys = array();
         $ckeys = array();

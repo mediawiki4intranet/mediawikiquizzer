@@ -47,6 +47,10 @@ if (!$egMWQuizzerEasyQuestionCompl)
 if (!$egMWQuizzerHardQuestionCompl)
     $egMWQuizzerHardQuestionCompl = 30;
 
+// Content language used to parse tests, in addition to English, which is always used
+if (!$egMWQuizzerContLang)
+    $egMWQuizzerContLang = false;
+
 /* END DEFAULT SETTINGS */
 
 require_once("mediawikiquizzer.i18n.php");
@@ -147,8 +151,12 @@ class MediawikiQuizzer
         if ($article->getTitle()->getNamespace() == NS_QUIZ)
         {
             if (self::isQuiz($article->getTitle()))
+            {
+                // Reload new revision id
+                $article = new Article($article->getTitle());
                 MediawikiQuizzerUpdater::updateQuiz($article, $text);
-            /* Update quizzes which include updated article */
+            }
+            // Update quizzes which include updated article
             foreach (self::getQuizLinksTo($article->getTitle()) as $template)
             {
                 $article = new Article($template);
@@ -229,7 +237,7 @@ class MediawikiQuizzer
                 {
                     if ($titleObj->getNamespace() == NS_QUIZ && !$id_seen[$row->page_id])
                     {
-                        /* Make closure only inside NS_QUIZ */
+                        // Make closure only inside NS_QUIZ
                         $where['tl_title'][] = $titleObj->getDBkey();
                         $id_seen[$row->page_id] = 1;
                     }
