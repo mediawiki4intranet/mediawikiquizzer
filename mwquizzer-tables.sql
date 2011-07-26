@@ -1,6 +1,6 @@
 --
 -- Tables used by MediawikiQuizzer extension.
--- Vitaliy Filippov, 2010.
+-- (c) Vitaliy Filippov, 2010+
 --
 -- You should not have to create these tables manually unless you are doing
 -- a manual installation. In normal conditions, maintenance/update.php should
@@ -57,9 +57,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_question_test (
   qt_question_hash binary(32) NOT NULL,
   -- question index number inside the test
   qt_num int UNSIGNED NOT NULL,
-  PRIMARY KEY (qt_test_id, qt_num),
-  FOREIGN KEY (qt_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON DELETE CASCADE ON UPDATE CASCADE,
-  FOREIGN KEY (qt_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE
+  PRIMARY KEY (qt_test_id, qt_num)
 ) /*$wgDBTableOptions*/;
 
 CREATE TABLE /*$wgDBPrefix*/mwq_choice (
@@ -71,8 +69,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_choice (
   ch_text blob NOT NULL,
   -- is this choice correct?
   ch_correct tinyint(1) UNSIGNED NOT NULL default 0,
-  PRIMARY KEY (ch_question_hash, ch_num),
-  FOREIGN KEY (ch_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE
+  PRIMARY KEY (ch_question_hash, ch_num)
 ) /*$wgDBTableOptions*/;
 
 CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
@@ -106,9 +103,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
   tk_correct_percent DECIMAL(4,1) DEFAULT NULL,
   -- passed or no?
   tk_pass tinyint(1) DEFAULT NULL,
-  PRIMARY KEY (tk_id),
-  FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON UPDATE CASCADE,
-  FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/`user` (user_id) ON DELETE SET NULL ON UPDATE CASCADE
+  PRIMARY KEY (tk_id)
 ) /*$wgDBTableOptions*/;
 
 CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
@@ -120,14 +115,15 @@ CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
   cs_choice_num int UNSIGNED NOT NULL,
   -- is this answer correct?
   cs_correct tinyint(1) NOT NULL,
-  KEY (cs_question_hash),
-  FOREIGN KEY (cs_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON UPDATE CASCADE,
-  FOREIGN KEY (cs_ticket) REFERENCES /*$wgDBPrefix*/mwq_ticket (tk_id) ON UPDATE CASCADE
+  KEY (cs_question_hash)
 ) /*$wgDBTableOptions*/;
 
-/*
-   id_test -> test_id
-   c_pos -> c_num
-   c_answer -> c_correct
-   c_choice -> c_text
-*/
+-- Create foreign keys (InnoDB only)
+
+ALTER TABLE /*$wgDBPrefix*/mwq_question_test ADD FOREIGN KEY (qt_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_question_test ADD FOREIGN KEY (qt_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_choice ADD FOREIGN KEY (ch_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_ticket ADD FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_ticket ADD FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_choice_stats ADD FOREIGN KEY (cs_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBPrefix*/mwq_choice_stats ADD FOREIGN KEY (cs_ticket) REFERENCES /*$wgDBPrefix*/mwq_ticket (tk_id) ON UPDATE CASCADE;
