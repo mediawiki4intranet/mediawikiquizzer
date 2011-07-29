@@ -252,11 +252,12 @@ class MediawikiQuizzerPage extends SpecialPage
 
         /* Allow viewing ticket variant with specified key for print mode */
         $variant = NULL;
-        if ($args['ticket_id'] && $args['ticket_key'] && $mode == 'print' &&
+        if ($mode == 'print' && $args['ticket_id'] && $args['ticket_key'] &&
             ($ticket = self::loadTicket($args['ticket_id'], $args['ticket_key'])))
         {
             $id = $ticket['tk_test_id'];
             $variant = $ticket['tk_variant'];
+            $answers = self::loadAnswers($ticket['tk_id']);
         }
 
         /* Raise error when no test is specified for mode=print or mode=show */
@@ -285,7 +286,7 @@ class MediawikiQuizzerPage extends SpecialPage
         }
 
         if ($mode == 'print')
-            $this->printTest($test, $args);
+            $this->printTest($test, $args, $answers);
         else
             $this->showTest($test, $args);
     }
@@ -689,7 +690,7 @@ EOT;
      * Note that read access to articles included into the quiz are not checked.
      * CSS page-break styles are specified so you can print this page.
      */
-    function printTest($test, $args)
+    function printTest($test, $args, $answers = NULL)
     {
         global $wgOut;
         $html = '';
@@ -712,6 +713,15 @@ EOT;
         $html .= $ti;
         $html .= $this->getCheckList($test, $args, false);
 
+        /* Display questionnaire filled with user's answers */
+        if ($answers !== NULL)
+        {
+            $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
+            $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-user-answers'));
+            $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
+            $html .= $this->getCheckList($test, $args, false, $answers);
+        }
+
         if ($is_adm)
         {
             /* Display check-list to users who can read source article */
@@ -726,8 +736,9 @@ EOT;
     }
 
     /* Display a table with question numbers, correct answers, statistics and labels when $checklist is TRUE
-       Display a table with question numbers and two blank columns - "answer" and "remark" when $checklist is FALSE */
-    function getCheckList($test, $args, $checklist = false)
+       Display a table with question numbers and two blank columns - "answer" and "remark" when $checklist is FALSE
+       Display a table with question numbers and user answers when $answers is specified */
+    function getCheckList($test, $args, $checklist = false, $answers = NULL)
     {
         $table = '';
         $table .= self::xelement('th', array('class' => 'mwq-tn'), wfMsg('mwquizzer-table-number'));
@@ -741,20 +752,32 @@ EOT;
             $table .= self::xelement('th', NULL, wfMsg('mwquizzer-table-remark'));
         foreach ($test['questions'] as $k => $q)
         {
-            $row = array($k+1);
+            $row = '<td>'.($k+1).'</td>';
             if ($checklist)
             {
                 /* build a list of correct choice indexes in the shuffled array */
                 $correct_indexes = array();
                 foreach ($q['correct_choices'] as $c)
                     $correct_indexes[] = $c['index'];
-                $row[] = implode(', ', $correct_indexes);
-                $row[] = $q['tries'] ? $q['correct_tries'] . '/' . $q['tries'] . ' ≈ ' . round($q['correct_tries'] * 100.0 / $q['tries']) . '%' : '';
-                $row[] = $q['qn_label'];
+                $row .= '<td>'.implode(', ', $correct_indexes).'</td>';
+                if ($q['tries'])
+                {
+                    $row .= '<td>' . $q['correct_tries'] . '/' . $q['tries'] .
+                        ' ≈ ' . round($q['correct_tries'] * 100.0 / $q['tries']) . '%</td>';
+                }
+                else
+                    $row .= '<td></td>';
+                $row .= '<td>'.$q['qn_label'].'</td>';
+            }
+            elseif ($answers && $answers[$q['qn_hash']])
+            {
+                $ans = $q['choiceByNum'][$answers[$q['qn_hash']]];
+                $row .= '<td>'.$ans['index'].'</td><td'.($ans['ch_correct'] ? '' : ' class="mwq-fail-bd"').'>'.
+                    wfMsg('mwquizzer-is-'.($ans['ch_correct'] ? 'correct' : 'incorrect')).'</td>';
             }
             else
-                array_push($row, '', '');
-            $table .= '<tr><td>'.implode('</td><td>', $row).'</td></tr>';
+                $row .= '<td></td><td></td>';
+            $table .= '<tr>'.$row.'</tr>';
         }
         $table = self::xelement('table', array('class' => $checklist ? 'mwq-checklist' : 'mwq-questionnaire'), $table);
         return $table;

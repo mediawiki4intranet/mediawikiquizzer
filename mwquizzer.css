@@ -25,3 +25,4 @@
 .mwq-dead { color: red; }
 .mwq-fail { background-color: #ffe0e0; }
 .mwq-pass { background-color: #e0ffe0; }
+.mwq-fail-bd { background-color: #ffe0e0; font-weight: bold; }
