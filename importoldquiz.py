@@ -33,3 +33,10 @@ def printquestions(questions):
       sys.stdout.write("\n")
     if 'reason' in q and q['reason'].strip() != '':
       sys.stdout.write("=== Объяснение ===\n\n"+q['reason'].strip()+"\n\n")
+
+if len(sys.argv) < 2:
+  print "USAGE: "+sys.argv[0]+" questions.py"
+  quit()
+
+execfile(sys.argv[1])
+printquestions(questions)
