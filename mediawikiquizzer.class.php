@@ -107,6 +107,7 @@ class MediawikiQuizzerPage extends SpecialPage
     // Get HTML for one question statistics message
     static function questionStatsHtml($correct, $complete)
     {
+        global $egMWQuizzerEasyQuestionCompl, $egMWQuizzerHardQuestionCompl;
         if ($complete)
         {
             $style = '';
@@ -132,7 +133,6 @@ class MediawikiQuizzerPage extends SpecialPage
     /* Display quiz question statistics near editsection link */
     static function quizQuestionInfo($title, $section, &$result)
     {
-        global $egMWQuizzerEasyQuestionCompl, $egMWQuizzerHardQuestionCompl;
         $k = $title->getPrefixedDBkey();
         /* Load questions taken from this article into cache, if not yet */
         if (!array_key_exists($k, self::$questionInfoCache))
