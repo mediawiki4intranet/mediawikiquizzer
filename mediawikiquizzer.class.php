@@ -104,6 +104,31 @@ class MediawikiQuizzerPage extends SpecialPage
         }
     }
 
+    // Get HTML for one question statistics message
+    static function questionStatsHtml($correct, $complete)
+    {
+        if ($complete)
+        {
+            $style = '';
+            $percent = intval(100*$correct/$complete);
+            $stat = wfMsg('mwquizzer-complete-stats', $correct,
+                $complete, $percent);
+            if ($complete > 4)
+            {
+                if ($percent >= $egMWQuizzerEasyQuestionCompl)
+                    $style = ' style="color: white; background: #080;"';
+                elseif ($percent <= $egMWQuizzerHardQuestionCompl)
+                    $style = ' style="color: white; background: #a00;"';
+            }
+            if ($style)
+                $stat = '&nbsp;'.$stat.'&nbsp;';
+        }
+        else
+            $stat = wfMsg('mwquizzer-no-complete-stats');
+        $stat = '<span class="editsection"'.$style.'>'.$stat.'</span>';
+        return $stat;
+    }
+
     /* Display quiz question statistics near editsection link */
     static function quizQuestionInfo($title, $section, &$result)
     {
@@ -139,27 +164,7 @@ class MediawikiQuizzerPage extends SpecialPage
         /* Append colored statistic hint to editsection span */
         if (self::$questionInfoCache[$k] &&
             ($obj = self::$questionInfoCache[$k][$sectnum]))
-        {
-            $style = '';
-            if ($obj->complete_count)
-            {
-                $percent = intval(100*$obj->correct_count/$obj->complete_count);
-                $stat = wfMsg('mwquizzer-complete-stats', $obj->correct_count,
-                    $obj->complete_count, $percent);
-                if ($obj->complete_count > 4)
-                {
-                    if ($percent >= $egMWQuizzerEasyQuestionCompl)
-                        $style = ' style="color: white; background: #080;"';
-                    elseif ($percent <= $egMWQuizzerHardQuestionCompl)
-                        $style = ' style="color: white; background: #a00;"';
-                }
-                if ($style)
-                    $stat = '&nbsp;'.$stat.'&nbsp;';
-            }
-            else
-                $stat = wfMsg('mwquizzer-no-complete-stats');
-            $result .= '<span class="editsection"'.$style.'>'.$stat.'</span>';
-        }
+            $stat = self::questionStatsHtml($obj->correct_count, $obj->complete_count);
     }
 
     /* Identical to Xml::element, but does no htmlspecialchars() on $contents */
@@ -525,6 +530,21 @@ class MediawikiQuizzerPage extends SpecialPage
         }
 
         return $test;
+    }
+
+    // Get average correct count for the test
+    function getAverage($test)
+    {
+        $dbr = wfGetDB(DB_SLAVE);
+        $res = $dbr->query('SELECT AVG(a) a FROM ('.$dbr->selectSQLtext(
+            array('mwq_ticket', 'mwq_choice_stats'),
+            'SUM(cs_correct)/COUNT(cs_correct)*100 a',
+            array('tk_id=cs_ticket', 'tk_test_id' => $test['test_id']),
+            __METHOD__,
+            array('GROUP BY' => 'cs_ticket')
+        ).') t', __METHOD__);
+        $row = $res->fetchObject();
+        return round($row->a);
     }
 
     /*************/
@@ -1017,6 +1037,25 @@ EOT;
         return $ticket;
     }
 
+    // Format some ticket properties for display
+    function formatTicket($t)
+    {
+        global $wgUser;
+        $r = array();
+        if ($t['tk_user_id'])
+            $r['name'] = $wgUser->getSkin()->link(Title::newFromText('User:'.$t['tk_user_text']), $t['tk_displayname'] ? $t['tk_displayname'] : $t['tk_user_text']);
+        elseif ($t['tk_displayname'])
+            $r['name'] = $t['tk_displayname'];
+        else
+            $r['name'] = wfMsg('mwquizzer-anonymous');
+        $r['duration'] = wfTimestamp(TS_UNIX, $t['tk_end_time']) - wfTimestamp(TS_UNIX, $t['tk_start_time']);
+        $d = $r['duration'] > 86400 ? intval($r['duration'] / 86400) . 'd ' : '';
+        $r['duration'] = $d . gmdate('H:i:s', $r['duration'] % 86400);
+        $r['start'] = wfTimestamp(TS_DB, $t['tk_start_time']);
+        $r['end'] = wfTimestamp(TS_DB, $t['tk_end_time']);
+        return $r;
+    }
+
     /* Check mode: check selected choices if not already checked, 
        display results and completion certificate */
     function checkTest($args)
@@ -1042,16 +1081,29 @@ EOT;
         $html = '';
         if ($testresult['seen'])
         {
+            $f = self::formatTicket($ticket);
             $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
             $html .= wfMsg('mwquizzer-variant-already-seen', $href);
+            $html .= wfMsg('mwquizzer-ticket-details',
+                $f['name'], $f['start'], $f['end'], $f['duration']
+            );
         }
 
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
 
+        // Variant number
         $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
 
+        // Result
         $html .= $this->getResultHtml($ticket, $test, $testresult);
+
+        $is_adm = self::isAdminForTest($test['test_id']);
+        if ($is_adm)
+        {
+            // Average result for admins
+            $html .= self::xelement('p', array('class' => 'mwq-rand'), wfMsg('mwquizzer-test-average', self::getAverage($test)));
+        }
 
         if ($testresult['passed'] && ($ticket['tk_displayname'] || $ticket['tk_user_id']))
         {
@@ -1061,8 +1113,8 @@ EOT;
 
         /* Display answers also for links from result review table (showtut=1)
            to users who are admins or have read access to quiz source */
-        if ($test['test_mode'] == 'TUTOR' || $args['showtut'] && self::isAdminForTest($test['test_id']))
-            $html .= $this->getTutorHtml($ticket, $test, $testresult);
+        if ($test['test_mode'] == 'TUTOR' || $args['showtut'] && $is_adm)
+            $html .= $this->getTutorHtml($ticket, $test, $testresult, $is_adm);
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
         $wgOut->addHTML($html);
@@ -1173,7 +1225,7 @@ EOT;
 
     /* TUTOR mode tests display all incorrect answered questions with
        correct answers and explanations after testing. */
-    function getTutorHtml($ticket, $test, $testresult)
+    function getTutorHtml($ticket, $test, $testresult, $is_adm = false)
     {
         $items = array();
         foreach ($test['questions'] as $k => $q)
@@ -1185,7 +1237,11 @@ EOT;
             $correct = $q['correct_choices'][0];
             $html .= Xml::element('hr');
             $html .= self::xelement('a', array('name' => "q$k"), '', false);
-            $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $k+1));
+            if ($is_adm)
+                $stats = self::questionStatsHtml($q['correct_tries'], $q['tries']);
+            else
+                $stats = '';
+            $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $k+1) . $stats);
             $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
             $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-right-answer'));
             $html .= self::xelement('div', array('class' => 'mwq-right-answer'), $correct['ch_text']);
@@ -1324,6 +1380,7 @@ EOT;
         // ID[LINK] TEST_ID TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
         foreach ($tickets as $i => $t)
         {
+            $f = self::formatTicket($t);
             $tr = array();
             /* 1. Ticket ID + link to standard results page */
             $tr[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array(
@@ -1363,20 +1420,13 @@ EOT;
             $a = self::xelement('a', array('href' => $href), $a);
             $tr[] = $a;
             /* 4. User link and/or name/displayname */
-            if ($t['tk_user_id'])
-                $tr[] = $skin->link(Title::newFromText('User:'.$t['tk_user_text']), $t['tk_displayname'] ? $t['tk_displayname'] : $t['tk_user_text']);
-            elseif ($t['tk_displayname'])
-                $tr[] = $t['tk_displayname'];
-            else
-                $tr[] = wfMsg('mwquizzer-anonymous');
+            $tr[] = $f['name'];
             /* 5. Start time in YYYY-MM-DD HH:MM:SS format */
-            $tr[] = wfTimestamp(TS_DB, $t['tk_start_time']);
+            $tr[] = $f['start'];
             /* 6. End time in YYYY-MM-DD HH:MM:SS format */
-            $tr[] = wfTimestamp(TS_DB, $t['tk_end_time']);
+            $tr[] = $f['end'];
             /* 7. Test duration in Xd HH:MM:SS format */
-            $duration = wfTimestamp(TS_UNIX, $t['tk_end_time']) - wfTimestamp(TS_UNIX, $t['tk_start_time']);
-            $d = $duration > 86400 ? intval($duration / 86400) . 'd ' : '';
-            $tr[] = $d . gmdate('H:i:s', $duration % 86400);
+            $tr[] = $f['duration'];
             /* 8. User IP */
             $tr[] = $t['tk_user_ip'];
             /* 9. Score and % */
