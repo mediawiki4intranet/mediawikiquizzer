@@ -20,35 +20,35 @@ $dir = dirname(__FILE__) . '/';
 // If set, this value is treated as IntraACL/HaloACL "Test admin" group name
 // This must be a complete name, with "Group/" prefix
 // See http://wiki.4intra.net/IntraACL for extension details
-if (!$egMWQuizzerIntraACLAdminGroup)
+if (!isset($egMWQuizzerIntraACLAdminGroup))
     $egMWQuizzerIntraACLAdminGroup = false;
 
 // If set to a list of usernames, users with these names are also treated as test administrators
-if (!$egMWQuizzerAdmins)
+if (!isset($egMWQuizzerAdmins))
     $egMWQuizzerAdmins = array('WikiSysop');
 
 // Path to diploma.png successful test completion "certificate" file
-if (!$egMWQuizzerCertificateTemplate)
+if (!isset($egMWQuizzerCertificateTemplate))
     $egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
 
 // Directory where the generated "certificates" are placed
-if (!$egMWQuizzerCertificateDir)
+if (!isset($egMWQuizzerCertificateDir))
     $egMWQuizzerCertificateDir = $IP . '/images/generated/diplomas';
 
 // Path to this directory
-if (!$egMWQuizzerCertificateUri)
+if (!isset($egMWQuizzerCertificateUri))
     $egMWQuizzerCertificateUri = "images/generated/diplomas";
 
 // Percent of correct question completion to consider it "easy" (green hint)
-if (!$egMWQuizzerEasyQuestionCompl)
+if (!isset($egMWQuizzerEasyQuestionCompl))
     $egMWQuizzerEasyQuestionCompl = 80;
 
 // Percent of correct question completion to consider it "hard" (red hint)
-if (!$egMWQuizzerHardQuestionCompl)
+if (!isset($egMWQuizzerHardQuestionCompl))
     $egMWQuizzerHardQuestionCompl = 30;
 
 // Content language used to parse tests, in addition to English, which is always used
-if (!$egMWQuizzerContLang)
+if (!isset($egMWQuizzerContLang))
     $egMWQuizzerContLang = false;
 
 /* END DEFAULT SETTINGS */
