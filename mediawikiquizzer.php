@@ -146,7 +146,7 @@ class MediawikiQuizzer
     // Quiz update hook, updates the quiz on every save, even when no new revision was created
     static function ArticleSaveComplete($article, $user, $text, $summary, $minoredit)
     {
-        if (self::$updated[$article->getId()])
+        if (isset(self::$updated[$article->getId()]))
             return true;
         if ($article->getTitle()->getNamespace() == NS_QUIZ)
         {
