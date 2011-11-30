@@ -215,18 +215,21 @@ class MediawikiQuizzerPage extends SpecialPage
         wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
-        $mode = $args['mode'];
+        $mode = isset($args['mode']) ? $args['mode'] : '';
 
-        $id = $par;
-        if (!$id)
+        if ($par)
+            $id = $par;
+        elseif (isset($args['id']))
             $id = $args['id'];
-        if (!$id)
+        elseif (isset($args['id_test']))
             $id = $args['id_test']; // backward compatibility
+        else
+            $id = '';
         $id = str_replace('_', ' ', $id);
 
         $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
-        if (!self::$modes[$mode])
+        if (!isset(self::$modes[$mode]))
         {
             $default_mode = true;
             $mode = $is_adm && !$id ? 'review' : 'show';
@@ -302,7 +305,8 @@ class MediawikiQuizzerPage extends SpecialPage
         global $wgTitle;
         $form = '';
         $form .= wfMsg('mwquizzer-quiz-id').': ';
-        $form .= self::xelement('input', array('type' => 'text', 'name' => 'quiz_name', 'value' => $args['quiz_name'])) . ' ';
+        $name = isset($args['quiz_name']) ? $args['quiz_name'] : '';
+        $form .= self::xelement('input', array('type' => 'text', 'name' => 'quiz_name', 'value' => $name)) . ' ';
         $form .= Xml::submitButton(wfMsg('mwquizzer-select-tickets'));
         $form = self::xelement('form', array('action' => $wgTitle->getLocalUrl(array('mode' => 'review')), 'method' => 'POST'), $form);
         return $form;
