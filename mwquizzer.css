@@ -11,11 +11,6 @@
 .mwq-questionnaire th { width: 30%; }
 .mwq-checklist th { width: 25%; }
 .mwq-questionnaire .mwq-tn, .mwq-checklist .mwq-tn { width: 10%; }
-#mwq-parselog div { font-family: monospace; }
-#mwq-parselog pre { padding: 0; }
-.mwq-log-error { color: white; background-color: red; }
-.mwq-log-warn { color: black; background-color: #ffff00; }
-.mwq-log-info { color: #008000; }
 .mwq-congrats { text-align: center; }
 .mwq-review { border-collapse: collapse; }
 .mwq-review td, .mwq-review th { border: 1px solid black; padding: 2px; }
@@ -26,3 +21,7 @@
 .mwq-fail { background-color: #ffe0e0; }
 .mwq-pass { background-color: #e0ffe0; }
 .mwq-fail-bd { background-color: #ffe0e0; font-weight: bold; }
+@media print {
+    .headline, #siteSub, .printfooter, #footer { display: none; }
+    .mwq-questionnaire td, .mwq-questionnaire th, .mwq-checklist td, .mwq-checklist th { white-space: nowrap; }
+}

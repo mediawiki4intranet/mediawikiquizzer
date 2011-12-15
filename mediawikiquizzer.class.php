@@ -61,7 +61,7 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         global $wgOut, $wgScriptPath;
         wfLoadExtensionMessages('MediawikiQuizzer');
-        $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
+        $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer-page.css");
         /* Load the test without questions */
         $quiz = self::loadTest($test_id, NULL, true);
         if (!$quiz)
@@ -135,7 +135,7 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         $k = $title->getPrefixedDBkey();
         /* Load questions taken from this article into cache, if not yet */
-        if (!array_key_exists($k, self::$questionInfoCache))
+        if (!isset(self::$questionInfoCache[$k]))
         {
             $dbr = wfGetDB(DB_SLAVE);
             $r = $dbr->select(
@@ -162,9 +162,11 @@ class MediawikiQuizzerPage extends SpecialPage
         preg_match('/\d+/', $section, $m);
         $sectnum = $m[0];
         /* Append colored statistic hint to editsection span */
-        if (self::$questionInfoCache[$k] &&
-            ($obj = self::$questionInfoCache[$k][$sectnum]))
-            $stat = self::questionStatsHtml($obj->correct_count, $obj->complete_count);
+        if (self::$questionInfoCache[$k] && !empty(self::$questionInfoCache[$k][$sectnum]))
+        {
+            $obj = self::$questionInfoCache[$k][$sectnum];
+            $result .= self::questionStatsHtml($obj->correct_count, $obj->complete_count);
+        }
     }
 
     /* Identical to Xml::element, but does no htmlspecialchars() on $contents */
@@ -244,6 +246,8 @@ class MediawikiQuizzerPage extends SpecialPage
         elseif ($mode == 'review')
         {
             /* Review mode is available to test administrators and users who have access to source */
+            if (!isset($args['quiz_name']))
+                $args['quiz_name'] = '';
             if (self::isAdminForTest($args['quiz_name']))
                 $this->review($args);
             else
@@ -251,7 +255,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 $wgOut->setRobotPolicy('noindex,nofollow');
                 $wgOut->setArticleRelated(false);
                 $wgOut->enableClientCache(false);
-                $wgOut->addWikiMsg(strlen($args['quiz_name']) ? 'mwquizzer-review-denied-quiz' : 'mwquizzer-review-denied-all');
+                $wgOut->addWikiMsg(isset($args['quiz_name']) ? 'mwquizzer-review-denied-quiz' : 'mwquizzer-review-denied-all');
                 $wgOut->addHTML($this->getSelectTestForReviewForm($args));
                 $wgOut->setPageTitle(wfMsg('mwquizzer-review-denied-title'));
             }
@@ -260,7 +264,8 @@ class MediawikiQuizzerPage extends SpecialPage
 
         /* Allow viewing ticket variant with specified key for print mode */
         $variant = NULL;
-        if ($mode == 'print' && $args['ticket_id'] && $args['ticket_key'] &&
+        $answers = NULL;
+        if ($mode == 'print' && !empty($args['ticket_id']) && !empty($args['ticket_key']) &&
             ($ticket = self::loadTicket($args['ticket_id'], $args['ticket_key'])))
         {
             $id = $ticket['tk_test_id'];
@@ -333,7 +338,7 @@ class MediawikiQuizzerPage extends SpecialPage
         }
         else
         {
-            if ($q['ch_order'])
+            if (isset($q['ch_order']))
             {
                 /* Reorder choices according to saved variant */
                 $nc = array();
@@ -380,7 +385,7 @@ class MediawikiQuizzerPage extends SpecialPage
         $test['test_name'] = html_entity_decode($test['test_name']);
 
         // default OK%
-        if ($test['ok_percent'] <= 0)
+        if (!isset($test['ok_percent']) || $test['ok_percent'] <= 0)
             $test['ok_percent'] = self::DEFAULT_OK_PERCENT;
 
         // do not load questions if $without_questions == true
@@ -727,9 +732,9 @@ EOT;
             $ti = self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']) . $ti;
 
         /* Display question list (with editsection links for admins) */
-        $html .= self::xelement('h2', array('style' => 'page-break-before: always'), wfMsg('mwquizzer-question-sheet'));
+        $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-question-sheet'));
         $html .= $ti;
-        $html .= $this->getQuestionList($test['questions'], false, $args['edit'] && $is_adm);
+        $html .= $this->getQuestionList($test['questions'], false, !empty($args['edit']) && $is_adm);
 
         /* Display questionnaire */
         $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
@@ -749,11 +754,10 @@ EOT;
         if ($is_adm)
         {
             /* Display check-list to users who can read source article */
-            $html .= self::xelement('h2', array('style' => 'page-break-after: before'), wfMsg('mwquizzer-answer-sheet'));
+            $html .= self::xelement('h2', array('style' => 'page-break-before: always'), wfMsg('mwquizzer-answer-sheet'));
             $html .= $ti;
             $html .= $this->getCheckList($test, $args, true);
         }
-        $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-print-pagetitle', $test['test_name']));
         $wgOut->addHTML($html);
@@ -832,10 +836,9 @@ EOT;
         $rows = array();
         foreach ($test['questions'] as $i => $q)
         {
-            $n = $_POST['a'][$i];
-            if ($n)
+            if (!empty($_POST['a'][$i]))
             {
-                $n--;
+                $n = $_POST['a'][$i]-1;
                 $is_correct = $q['choices'][$n]['ch_correct'] ? 1 : 0;
                 $answers[$q['qn_hash']] = $q['choices'][$n]['ch_num'];
                 /* Build rows for saving answers into database */
@@ -887,6 +890,7 @@ EOT;
         {
             /* Else check POSTed answers */
             $testresult['answers'] = self::checkAnswers($test, $ticket);
+            $testresult['seen'] = false;
             /* Need to send mail and update ticket in the DB */
             $updated = true;
         }
@@ -954,7 +958,10 @@ EOT;
         foreach ($test['questions'] as $i => $q)
         {
             $msg_q = wfMsg('mwquizzer-question', $i+1);
-            $num = $testresult['answers'][$q['qn_hash']];
+            if (isset($testresult['answers'][$q['qn_hash']]))
+                $num = $testresult['answers'][$q['qn_hash']];
+            else
+                $num = NULL;
             if (!$num || !$q['choiceByNum'][$num]['ch_correct'])
             {
                 $qn_text = trim(strip_tags($q['qn_text']));
@@ -978,7 +985,7 @@ $qn_text
 
 $msg_r
 $ch_correct
-$ch_user≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈
+${ch_user}≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈
 EOT;
             }
         }
@@ -990,7 +997,7 @@ EOT;
             array('user',           $ticket['tk_user_text']),
             array('start',          $ticket['tk_start_time']),
             array('end',            $ticket['tk_end_time']),
-            array('ip',             $ticket['tk_ip']),
+            array('ip',             $ticket['tk_user_ip']),
             array('right-answers',  "$testresult[correct_count] ≈ $testresult[correct_percent]% (random: $test[random_correct])"),
             array('score',          "$testresult[score] ≈ $testresult[score_percent]%"),
         );
@@ -1117,7 +1124,7 @@ EOT;
 
         /* Display answers also for links from result review table (showtut=1)
            to users who are admins or have read access to quiz source */
-        if ($test['test_mode'] == 'TUTOR' || $args['showtut'] && $is_adm)
+        if ($test['test_mode'] == 'TUTOR' || !empty($args['showtut']) && $is_adm)
             $html .= $this->getTutorHtml($ticket, $test, $testresult, $is_adm);
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
@@ -1137,7 +1144,7 @@ EOT;
     {
         $row = self::xelement('th', NULL, wfMsg('mwquizzer-right-answers'))
              . self::xelement('th', NULL, wfMsg('mwquizzer-score-long'));
-        $html .= self::xelement('tr', NULL, $row);
+        $html = self::xelement('tr', NULL, $row);
         $row = self::wrapResult($testresult['correct_count'], $testresult['correct_percent'])
              . self::wrapResult($testresult['score'], $testresult['score_percent']);
         $html .= self::xelement('tr', NULL, $row);
@@ -1287,7 +1294,7 @@ EOT;
         }
         if ($curpage < $npages-1)
             $pages[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array('page' => $curpage+1)+$args)), '›');
-        $html .= wfMsg('mwquizzer-pages');
+        $html = wfMsg('mwquizzer-pages');
         $html .= implode(' ', $pages);
         $html = self::xelement('p', array('class' => 'mwq-pages'), $html);
         return $html;
@@ -1297,9 +1304,29 @@ EOT;
     static function selectTickets($args)
     {
         $dbr = wfGetDB(DB_SLAVE);
-        $info = array('mode' => 'review');
+        $info = array(
+            'mode' => 'review',
+            'quiz_name' => '',
+            'variant_hash_crc32' => '',
+            'user_text' => '',
+            'start_time_min' => '',
+            'start_time_max' => '',
+            'end_time_min' => '',
+            'end_time_max' => '',
+        );
         $where = array('tk_end_time IS NOT NULL', 'tk_test_id=test_id');
-        if (strlen($args['quiz_name']) && ($t = Title::newFromText($args['quiz_name'], NS_QUIZ)))
+        $args = $args+array(
+            'quiz_name'          => '',
+            'variant_hash_crc32' => '',
+            'user_text'          => '',
+            'start_time_min'     => '',
+            'start_time_max'     => '',
+            'end_time_min'       => '',
+            'end_time_max'       => '',
+            'perpage'            => '',
+            'page'               => '',
+        );
+        if (isset($args['quiz_name']) && ($t = Title::newFromText($args['quiz_name'], NS_QUIZ)))
         {
             $where['tk_test_id'] = mb_substr($t->getText(), 0, 32);
             $info['quiz_name'] = $t->getText();

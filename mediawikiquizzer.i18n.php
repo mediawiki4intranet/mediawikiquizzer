@@ -53,7 +53,7 @@ Then click "Select results" again.',
     'mwquizzer-check-pagetitle'         => '$1 — results',
     'mwquizzer-review-pagetitle'        => 'MediaWiki Quizzer — review test results',
 
-    'mwquizzer-question'                => 'Question',
+    'mwquizzer-question'                => 'Question $1',
     'mwquizzer-counter-format'          => '%%H%%:%%M%%:%%S%% elapsed.',
     'mwquizzer-prompt'                  => 'If you want to receive a test completion certificate, please, enter you name:',
     'mwquizzer-submit'                  => 'Submit answers',
