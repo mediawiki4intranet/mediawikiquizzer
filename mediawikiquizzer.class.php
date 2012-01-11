@@ -1173,7 +1173,8 @@ EOT;
         {
             $image = new Imagick($egMWQuizzerCertificateTemplate);
             $draw = new ImagickDraw();
-            $draw->setFontFamily("Times");
+            try { $draw->setFont("Segoe-Print"); }
+            catch (Exception $e) { $draw->setFont("Times-New-Roman"); }
             $draw->setTextAlignment(imagick::ALIGN_CENTER);
             $draw->setFillColor("#062BFE");
             $draw->setFontSize(36);
