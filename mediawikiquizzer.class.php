@@ -1483,7 +1483,7 @@ EOT;
     {
         global $wgTitle;
         $html = '';
-        $html .= Xml::hidden('mode', 'review');
+        $html .= Html::hidden('mode', 'review');
         $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz-id').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-variant').': ', 'variant_hash_crc32', 'variant_hash_crc32', 10, $info['variant_hash_crc32']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-user').': ', 'user_text', 'user_text', 30, $info['user_text']) . '<br />';
