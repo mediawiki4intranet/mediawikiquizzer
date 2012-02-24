@@ -45,22 +45,28 @@ class MediawikiQuizzerUpdater
     static $regexp_test, $regexp_test_nq, $regexp_question, $regexp_true, $regexp_correct;
     static $qn_keys = array('choice', 'choices', 'correct', 'corrects', 'label', 'explanation', 'comments');
 
-    /* Parse wiki-text $text without TOC, heading numbers and EditSection links */
+    /* Parse wiki-text $text without TOC, heading numbers and EditSection links turned on */
+    static $parser = NULL, $parserOptions;
     static function parse($article, $text)
     {
         global $wgParser;
+        /* Compatibility with MagicNumberedHeadings extension */
         if (defined('MAG_NUMBEREDHEADINGS') && ($mag = MagicWord::get(MAG_NUMBEREDHEADINGS)))
             $mag->matchAndRemove($text);
         MagicWord::get('toc')->matchAndRemove($text);
         MagicWord::get('forcetoc')->matchAndRemove($text);
         MagicWord::get('noeditsection')->matchAndRemove($text);
-        $options = clone $wgParser->mOptions;
-        $options->mNumberHeadings = false;
-        $options->mEditSection = true;
-        $options->mIsSectionPreview = true;
         /* Disable insertion of question statistics into editsection links */
         MediawikiQuizzer::$disableQuestionInfo = true;
-        $html = $wgParser->parse("__NOTOC__\n$text", $article->getTitle(), $options, true, false)->getText();
+        if (!self::$parser)
+        {
+            self::$parser = clone $wgParser;
+            self::$parserOptions = clone $wgParser->mOptions;
+            self::$parserOptions->mNumberHeadings = false;
+            self::$parserOptions->mEditSection = true;
+            self::$parserOptions->mIsSectionPreview = true;
+        }
+        $html = self::$parser->parse("__NOTOC__\n$text", $article->getTitle(), self::$parserOptions)->getText();
         MediawikiQuizzer::$disableQuestionInfo = false;
         return $html;
     }
