@@ -136,6 +136,7 @@ class MediawikiQuizzer
     // Quiz update hook, updates the quiz on every save, even when no new revision was created
     static function ArticleSaveComplete($article, $user, $text, $summary, $minoredit)
     {
+        global $wgVersion;
         if (isset(self::$updated[$article->getId()]))
             return true;
         if ($article->getTitle()->getNamespace() == NS_QUIZ)
@@ -150,7 +151,7 @@ class MediawikiQuizzer
             foreach (self::getQuizLinksTo($article->getTitle()) as $template)
             {
                 $article = new Article($template);
-                MediawikiQuizzerUpdater::updateQuiz($article, $article->getContent());
+                MediawikiQuizzerUpdater::updateQuiz($article, $wgVersion < '1.18' ? $article->getContent() : $article->getRawText());
             }
             self::$updated[$article->getId()] = true;
         }
@@ -160,14 +161,15 @@ class MediawikiQuizzer
     // Another quiz update hook, for action=purge
     static function ArticlePurge($article)
     {
-        self::ArticleSaveComplete($article, NULL, $article->getContent(), NULL, NULL);
+        global $wgVersion;
+        self::ArticleSaveComplete($article, NULL, $wgVersion < '1.18' ? $article->getContent() : $article->getRawText(), NULL, NULL);
         return true;
     }
 
     // Another quiz update hook, for MW < 1.14, called when a new revision is created
     static function NewRevisionFromEditComplete($article, $rev, $baseID, $user)
     {
-        self::ArticleSaveComplete($article, NULL, $article->getContent(), NULL, NULL);
+        self::ArticlePurge($article);
         return true;
     }
 
