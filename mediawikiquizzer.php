@@ -20,36 +20,28 @@ $dir = dirname(__FILE__) . '/';
 // If set, this value is treated as IntraACL/HaloACL "Test admin" group name
 // This must be a complete name, with "Group/" prefix
 // See http://wiki.4intra.net/IntraACL for extension details
-if (!isset($egMWQuizzerIntraACLAdminGroup))
-    $egMWQuizzerIntraACLAdminGroup = false;
+$egMWQuizzerIntraACLAdminGroup = false;
 
 // If set to a list of usernames, users with these names are also treated as test administrators
-if (!isset($egMWQuizzerAdmins))
-    $egMWQuizzerAdmins = array('WikiSysop');
+$egMWQuizzerAdmins = array('WikiSysop');
 
 // Path to diploma.png successful test completion "certificate" file
-if (!isset($egMWQuizzerCertificateTemplate))
-    $egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
+$egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
 
 // Directory where the generated "certificates" are placed
-if (!isset($egMWQuizzerCertificateDir))
-    $egMWQuizzerCertificateDir = $IP . '/images/generated/diplomas';
+$egMWQuizzerCertificateDir = $IP . '/images/generated/diplomas';
 
 // Path to this directory
-if (!isset($egMWQuizzerCertificateUri))
-    $egMWQuizzerCertificateUri = "images/generated/diplomas";
+$egMWQuizzerCertificateUri = "images/generated/diplomas";
 
 // Percent of correct question completion to consider it "easy" (green hint)
-if (!isset($egMWQuizzerEasyQuestionCompl))
-    $egMWQuizzerEasyQuestionCompl = 80;
+$egMWQuizzerEasyQuestionCompl = 80;
 
 // Percent of correct question completion to consider it "hard" (red hint)
-if (!isset($egMWQuizzerHardQuestionCompl))
-    $egMWQuizzerHardQuestionCompl = 30;
+$egMWQuizzerHardQuestionCompl = 30;
 
 // Content language used to parse tests, in addition to English, which is always used
-if (!isset($egMWQuizzerContLang))
-    $egMWQuizzerContLang = false;
+$egMWQuizzerContLang = false;
 
 /* END DEFAULT SETTINGS */
 
@@ -72,6 +64,7 @@ $wgAutoloadClasses += array(
 );
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'MediawikiQuizzer::LoadExtensionSchemaUpdates';
 $wgHooks['ArticleSaveComplete'][] = 'MediawikiQuizzer::ArticleSaveComplete';
+$wgHooks['ArticlePurge'][] = 'MediawikiQuizzer::ArticlePurge';
 $wgHooks['ArticleViewHeader'][] = 'MediawikiQuizzer::ArticleViewHeader';
 $wgHooks['DoEditSectionLink'][] = 'MediawikiQuizzer::DoEditSectionLink';
 $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
@@ -161,6 +154,13 @@ class MediawikiQuizzer
             }
             self::$updated[$article->getId()] = true;
         }
+        return true;
+    }
+
+    // Another quiz update hook, for action=purge
+    static function ArticlePurge($article)
+    {
+        self::ArticleSaveComplete($article, NULL, $article->getContent(), NULL, NULL);
         return true;
     }
 
