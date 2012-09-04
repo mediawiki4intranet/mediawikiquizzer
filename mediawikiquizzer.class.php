@@ -816,7 +816,7 @@ EOT;
     /**************/
 
     /* Load saved answer numbers from database */
-    function loadAnswers($ticket_id)
+    static function loadAnswers($ticket_id)
     {
         $answers = array();
         $dbr = wfGetDB(DB_SLAVE);
@@ -856,7 +856,7 @@ EOT;
     }
 
     /* Calculate scores based on $testresult['answers'] ($hash => $num) */
-    function calculateScores(&$testresult, &$test)
+    static function calculateScores(&$testresult, &$test)
     {
         foreach ($testresult['answers'] as $hash => $n)
         {
