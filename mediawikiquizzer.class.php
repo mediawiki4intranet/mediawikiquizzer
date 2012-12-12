@@ -1049,7 +1049,7 @@ EOT;
     }
 
     // Format some ticket properties for display
-    function formatTicket($t)
+    static function formatTicket($t)
     {
         global $wgUser;
         $r = array();
