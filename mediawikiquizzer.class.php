@@ -13,7 +13,7 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
  */
 
-require_once 'urandom.php';
+require_once dirname(__FILE__).'/urandom.php';
 
 /**
  * MediawikiQuizzerPage implements the special page Special:MediawikiQuizzer.

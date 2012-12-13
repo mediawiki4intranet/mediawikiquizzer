@@ -45,8 +45,6 @@ $egMWQuizzerContLang = false;
 
 /* END DEFAULT SETTINGS */
 
-require_once("mediawikiquizzer.i18n.php");
-
 $wgExtensionCredits['specialpage'][] = array(
     'name'        => 'MediawikiQuizzer',
     'author'      => ' Stas Fomin, Vitaliy Filippov ',

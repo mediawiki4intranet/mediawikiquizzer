@@ -1,6 +1,9 @@
 <?php
 
-/* Maintenance script for re-parsing quizzes after extension update. */
+/**
+ * Maintenance script for re-parsing quizzes after extension updat
+ * FIXME: Wrap into a Maintenance class
+ */
 
 chdir(dirname(__FILE__).'/../../');
 
