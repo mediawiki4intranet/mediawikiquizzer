@@ -57,19 +57,19 @@ class MediawikiQuizzerPage extends SpecialPage
     /********************/
 
     /* Display parse log and quiz actions for parsed quiz article */
-    static function quizArticleInfo($test_id)
+    static function quizArticleInfo($test_title)
     {
         global $wgOut, $wgScriptPath;
         wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer-page.css");
         /* Load the test without questions */
-        $quiz = self::loadTest($test_id, NULL, true);
+        $quiz = self::loadTest($test_title, NULL, true);
         if (!$quiz)
             return;
         $s = Title::newFromText('Special:MediawikiQuizzer');
         $actions = array(
-            'try'   => $s->getFullUrl(array('id' => $test_id)),
-            'print' => $s->getFullUrl(array('id' => $test_id, 'mode' => 'print')),
+            'try'   => $s->getFullUrl(array('id' => $quiz['test_id'])),
+            'print' => $s->getFullUrl(array('id' => $quiz['test_id'], 'mode' => 'print')),
         );
         $wgOut->addHTML(wfMsg('mwquizzer-actions', $quiz['test_name'], $actions['try'], $actions['print']));
         /* Display log */
@@ -224,10 +224,9 @@ class MediawikiQuizzerPage extends SpecialPage
         elseif (isset($args['id']))
             $id = $args['id'];
         elseif (isset($args['id_test']))
-            $id = $args['id_test']; // backward compatibility
+            $id = Title::newFromText('Quiz:'.$args['id_test']); // backward compatibility
         else
             $id = '';
-        $id = str_replace('_', ' ', $id);
 
         $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
@@ -369,17 +368,23 @@ class MediawikiQuizzerPage extends SpecialPage
 
     /* Load a test from database. Optionally shuffle/limit questions and answers,
        compute variant ID (sequence hash) and scores. */
-    static function loadTest($id, $variant = NULL, $without_questions = false)
+    static function loadTest($idOrTitle, $variant = NULL, $without_questions = false)
     {
         global $wgOut;
         $dbr = wfGetDB(DB_SLAVE);
 
-        $result = $dbr->select('mwq_test', '*', array('test_id' => $id), __METHOD__);
+        if ($idOrTitle instanceof Title)
+            $where = array('test_page_title' => $idOrTitle->getText());
+        else
+            $where = array('test_id' => $idOrTitle);
+        $result = $dbr->select('mwq_test', '*', $where, __METHOD__);
         $test = $dbr->fetchRow($result);
         $dbr->freeResult($result);
 
         if (!$test)
             return NULL;
+
+        $id = $test['test_id'];
 
         // decode entities inside test_name as it is used inside HTML <title>
         $test['test_name'] = html_entity_decode($test['test_name']);
@@ -1327,7 +1332,7 @@ EOT;
             'perpage'            => '',
             'page'               => '',
         );
-        if (isset($args['quiz_name']) && ($t = Title::makeTitle(NS_QUIZ, $args['quiz_name'])))
+        if (isset($args['quiz_name']) && ($t = Title::newFromText('Quiz:'.$args['quiz_name'])))
         {
             $where['test_page_title'] = $t->getText();
             $info['quiz_name'] = $t->getText();

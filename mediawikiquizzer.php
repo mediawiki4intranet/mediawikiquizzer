@@ -185,7 +185,7 @@ class MediawikiQuizzer
     {
         global $wgOut;
         if (self::isQuiz($t = $article->getTitle()))
-            MediawikiQuizzerPage::quizArticleInfo($t->getText());
+            MediawikiQuizzerPage::quizArticleInfo($t);
         return true;
     }
 
