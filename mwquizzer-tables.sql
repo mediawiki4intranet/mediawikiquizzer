@@ -90,8 +90,10 @@ CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
   tk_user_id int unsigned default null,
   -- user display name (printed on the completion certificate)
   tk_displayname varchar(255) COLLATE utf8_bin default null,
-  -- user details (JSON hash of arbitrary data) + predefined field 'reviewed'
+  -- user details (JSON hash of arbitrary data)
   tk_details blob default null,
+  -- is the ticket reviewed by admins?
+  tk_reviewed tinyint(1) not null default 0,
   -- user name
   tk_user_text varchar(255) COLLATE utf8_bin default null,
   -- user IP address

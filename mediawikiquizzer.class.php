@@ -870,7 +870,7 @@ EOT;
         $rows = array();
         if (!empty($_POST['a_values']))
         {
-            $_POST['a'] = json_decode($_POST['a_values']);
+            $_POST['a'] = json_decode($_POST['a_values'], true);
         }
         foreach ($test['questions'] as $i => $q)
         {
@@ -922,7 +922,7 @@ EOT;
         {
             /* Ticket already checked, load answers from database */
             $testresult['answers'] = self::loadAnswers($ticket['tk_id']);
-            $testresult['details'] = $ticket['tk_details'] ? json_decode($ticket['tk_details']) : array();
+            $testresult['details'] = $ticket['tk_details'] ? json_decode($ticket['tk_details'], true) : array();
             $testresult['seen'] = true;
         }
         else
@@ -1191,29 +1191,58 @@ EOT;
         $html = '';
         if ($testresult['seen'])
         {
-            $f = self::formatTicket($ticket);
             $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
             $html .= wfMsg('mwquizzer-variant-already-seen', $href);
-            $html .= wfMsg('mwquizzer-ticket-details',
-                $f['name'], $f['start'], $f['end'], $f['duration']
-            );
+        }
+
+        $f = self::formatTicket($ticket);
+        $html .= wfMsg('mwquizzer-ticket-details',
+            $f['name'], $f['start'], $f['end'], $f['duration']
+        );
+
+        $is_adm = self::isAdminForTest($test['test_id']);
+        if ($is_adm)
+        {
+            if ($ticket['tk_reviewed'])
+            {
+                $html .= wfMsg('mwquizzer-ticket-reviewed');
+            }
+            else
+            {
+                wfGetDB(DB_MASTER)->update(
+                    'mwq_ticket', array('tk_reviewed' => 1),
+                    array('tk_id' => $ticket['tk_id']), __METHOD__
+                );
+            }
+        }
+
+        $detail = $ticket['tk_details'] ? json_decode($ticket['tk_details'], true) : array();
+        if ($detail)
+        {
+            $html .= '<ul>';
+            foreach ($detail as $k => $v)
+            {
+                $html .= '<li>'.htmlspecialchars($k).': '.htmlspecialchars($v).'</li>';
+            }
+            $html .= '</ul>';
         }
 
         if ($test['test_intro'])
+        {
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
+        }
+
+        if ($is_adm)
+        {
+            // Average result for admins
+            $html .= self::xelement('p', NULL, wfMsg('mwquizzer-test-average', self::getAverage($test)));
+        }
 
         // Variant number
         $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
 
         // Result
         $html .= $this->getResultHtml($ticket, $test, $testresult);
-
-        $is_adm = self::isAdminForTest($test['test_id']);
-        if ($is_adm)
-        {
-            // Average result for admins
-            $html .= self::xelement('p', array('class' => 'mwq-rand'), wfMsg('mwquizzer-test-average', self::getAverage($test)));
-        }
 
         if ($testresult['passed'] && ($ticket['tk_displayname'] || $ticket['tk_user_id']))
         {
