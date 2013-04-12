@@ -127,7 +127,9 @@ class MediawikiQuizzer
     static function LoadExtensionSchemaUpdates()
     {
         global $wgExtNewTables, $wgExtNewFields;
-        $wgExtNewTables[] = array('mwq_test', dirname(__FILE__).'/mwquizzer-tables.sql');
+        $dir = dirname(__FILE__);
+        $wgExtNewTables[] = array('mwq_test', $dir.'/mwquizzer-tables.sql');
+        $wgExtNewFields[] = array('mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql');
         return true;
     }
 

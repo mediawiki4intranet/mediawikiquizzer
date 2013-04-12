@@ -934,7 +934,7 @@ EOT;
         if ($ticket['tk_end_time'] === NULL)
             return;
         $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
-        $testresult = self::checkOrLoadResult($ticket, $test, $args);
+        $testresult = self::checkOrLoadResult($ticket, $test, array());
         $update = array(
             /* Testing result to be shown in the table.
                Nothing relies on these values. */
@@ -1327,9 +1327,9 @@ EOT;
             'perpage'            => '',
             'page'               => '',
         );
-        if (isset($args['quiz_name']) && ($t = Title::newFromText($args['quiz_name'], NS_QUIZ)))
+        if (isset($args['quiz_name']) && ($t = Title::makeTitle(NS_QUIZ, $args['quiz_name'])))
         {
-            $where['tk_test_id'] = mb_substr($t->getText(), 0, 32);
+            $where['test_page_title'] = $t->getText();
             $info['quiz_name'] = $t->getText();
         }
         $crc = $args['variant_hash_crc32'];
@@ -1427,9 +1427,9 @@ EOT;
                 if ($t['test_name'])
                     $name = $t['test_name'];
                 else
-                    $name = $t['test_id'];
+                    $name = $t['test_page_title'];
                 $testtry = $wgTitle->getFullUrl(array('id' => $t['test_id']));
-                $testhref = Title::newFromText('Quiz:'.$t['tk_test_id'])->getFullUrl();
+                $testhref = Title::newFromText('Quiz:'.$t['test_page_title'])->getFullUrl();
                 $tr[] = $t['test_id'];
                 $tr[] = self::xelement('a', array('href' => $testhref), $name) . ' (' .
                     self::xelement('a', array('href' => $testtry), wfMsg('mwquizzer-try')) . ')';
@@ -1437,7 +1437,7 @@ EOT;
             /* Or 2. Quiz ID in the case when it is not found */
             else
             {
-                $tr[] = self::xelement('s', array('class' => 'mwq-dead'), $t['tk_test_id']);
+                $tr[] = self::xelement('s', array('class' => 'mwq-dead'), $t['tk_test_page_title']);
                 $tr[] = '';
             }
             /* 3. Variant CRC32 + link to printable version of this variant */
@@ -1469,7 +1469,15 @@ EOT;
             $row = '';
             foreach ($tr as $i => &$td)
             {
-                $attr = $i == 8 || $i == 9 ? array('class' => $t['tk_pass'] ? 'mwq-pass' : 'mwq-fail') : NULL;
+                $attr = array();
+                if ($i == 0 || $i == 1)
+                {
+                    $attr['style'] = 'text-align: center';
+                }
+                elseif ($i == 8 || $i == 9)
+                {
+                    $attr['class'] = $t['tk_pass'] ? 'mwq-pass' : 'mwq-fail';
+                }
                 $row .= self::xelement('td', $attr, $td);
             }
             $html .= self::xelement('tr', NULL, $row);

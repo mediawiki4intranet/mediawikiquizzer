@@ -457,14 +457,22 @@ class MediawikiQuizzerUpdater
     /* Parse $text and update data of the quiz linked to article title */
     static function updateQuiz($article, $text)
     {
+        $dbw = wfGetDB(DB_MASTER);
         $html = self::parse($article, $text);
         $quiz = self::parseQuiz2($html);
-        $quiz['test_id'] = mb_substr($article->getTitle()->getText(), 0, 32);
+        $quiz['test_page_title'] = $article->getTitle()->getText();
+        $quiz['test_id'] = $dbw->selectField('mwq_test', 'test_id', array('test_page_title' => $quiz['test_page_title']), __METHOD__);
+        if (!$quiz['test_id'])
+        {
+            // Test IDs are auto-generated from article IDs,
+            // but other code DOES NOT rely on it. It is required
+            // for correct operation with mwq_* in $wgSharedTables.
+            $quiz['test_id'] = $article->getId();
+        }
         if (!$quiz['questions'])
         {
             // No questions found.
             // Append error to the top of quiz test_log and return.
-            $dbw = wfGetDB(DB_MASTER);
             $res = $dbw->select('mwq_test', '*', array('test_id' => $quiz['test_id']), __METHOD__);
             $row = $dbw->fetchRow($res);
             if (!$row)
@@ -527,7 +535,6 @@ class MediawikiQuizzerUpdater
             if (!array_key_exists($k, $choices[0]))
                 $choices[0][$k] = '';
         unset($quiz['questions']);
-        $dbw = wfGetDB(DB_MASTER);
         $dbw->delete('mwq_question_test', array('qt_test_id' => $quiz['test_id']), __METHOD__);
         $dbw->delete('mwq_choice', array('ch_question_hash' => $hashes), __METHOD__);
         self::insertOrUpdate($dbw, 'mwq_test', array($quiz), __METHOD__);

@@ -53,15 +53,15 @@ for q in quizzes:
     """,(q['id'], q['name'], q['intro'], q['mode'],
          q['shuffle_choices'], q['shuffle_questions'],
          q['prompt'], q['secret_code'], q['ok_percent'], 
-	 q['limit']
+         q['limit']
          ));
     questions=q['questions']
     for i in range(0,len(questions)):
         lq=questions[i]
         if not lq.has_key('reason'):
           lq['reason']=''
-	if not lq.has_key('label'):
-      	  lq['label']=''
+        if not lq.has_key('label'):
+          lq['label']=''
         lc.execute(
         """
         insert into question(id_test, num, question, explanation, label) 
@@ -76,5 +76,4 @@ for q in quizzes:
             values(%s,%s,%s,%s,%s)
             """,
             (q['id'], i+1, li_choice+1, choice[1],choice[0]))
-            
 
