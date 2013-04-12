@@ -55,7 +55,8 @@ Then click "Select results" again.',
 
     'mwquizzer-question'                => 'Question $1',
     'mwquizzer-counter-format'          => '%%H%%:%%M%%:%%S%% elapsed.',
-    'mwquizzer-prompt'                  => 'If you want to receive a test completion certificate, please, enter you name:',
+    'mwquizzer-prompt'                  => 'Your name:',
+    'mwquizzer-prompt-needed'           => 'Please fill in these required fields:',
     'mwquizzer-submit'                  => 'Submit answers',
     'mwquizzer-question-sheet'          => 'Question List',
     'mwquizzer-test-sheet'              => 'Questionnaire',
@@ -91,7 +92,7 @@ Then click "Select results" again.',
     /* Names of various fields */
     'mwquizzer-ticket-id'               => 'Ticket ID',
     'mwquizzer-quiz'                    => 'Quiz',
-    'mwquizzer-quiz-id'                 => 'Quiz ID',
+    'mwquizzer-quiz-title'              => 'Quiz title',
     'mwquizzer-variant'                 => 'Variant',
     'mwquizzer-who'                     => 'Display name',
     'mwquizzer-user'                    => 'User',
@@ -113,6 +114,7 @@ Then click "Select results" again.',
     'mwquizzer-parse-test_ok_percent'                   => 'OK\s*%|Pass[\s_]*percent|OK[\s_]*percent|Completion\s*percent',
     'mwquizzer-parse-test_autofilter_min_tries'         => '(?:too[\s_]*simple|autofilter)[\s_]*min[\s_]*tries',
     'mwquizzer-parse-test_autofilter_success_percent'   => '(?:too[\s_]*simple|autofilter)[\s_]*(?:ok|success)[\s_]*percent',
+    'mwquizzer-parse-test_user_details'                 => 'Ask[\s_]*user',
 
     /* Regular expressions used to parse questions etc */
     'mwquizzer-parse-question'      => 'Question[:\s]*',
@@ -168,7 +170,8 @@ $messages['ru'] = array(
 
     'mwquizzer-question'                => 'Вопрос $1',
     'mwquizzer-counter-format'          => 'Прошло %%H%%:%%M%%:%%S%%.',
-    'mwquizzer-prompt'                  => 'Если хотите получить сертификат прохождения теста, пожалуйста, введите свое имя:',
+    'mwquizzer-prompt'                  => 'Ваше имя:',
+    'mwquizzer-prompt-needed'           => 'Обязательно заполните следующие поля:',
     'mwquizzer-submit'                  => 'Отправить ответы',
     'mwquizzer-question-sheet'          => 'Лист вопросов',
     'mwquizzer-test-sheet'              => 'Форма для тестирования',
@@ -204,7 +207,7 @@ $messages['ru'] = array(
     /* Имена разных полей */
     'mwquizzer-ticket-id'               => 'ID попытки',
     'mwquizzer-quiz'                    => 'Тест',
-    'mwquizzer-quiz-id'                 => 'ID теста',
+    'mwquizzer-quiz-title'              => 'Заголовок',
     'mwquizzer-variant'                 => 'Вариант',
     'mwquizzer-who'                     => 'Имя',
     'mwquizzer-user'                    => 'Пользователь',
@@ -227,6 +230,7 @@ $messages['ru'] = array(
     'mwquizzer-parse-test_ok_percent'                   => 'Процент\s*завершения|%\s*завершения|ОК\s*%|OK\s*%|Pass[\s_]*percent|OK[\s_]*percent|Completion\s*percent',
     'mwquizzer-parse-test_autofilter_min_tries'         => 'Мин[\s\.]*попыток\s*слишком\s*простых\s*вопросов|(?:too[\s_]*simple|autofilter)[\s_]*min[\s_]*tries',
     'mwquizzer-parse-test_autofilter_success_percent'   => '%\s*успехов\s*слишком\s*простых\s*вопросов|(?:too[\s_]*simple|autofilter)[\s_]*(?:ok|success)[\s_]*percent',
+    'mwquizzer-parse-test_user_details'                 => 'Спросить\s*пользователя|Ask[\s_]*user',
 
     /* Регулярные выражения для разбора названий вопросов и т.п. */
     'mwquizzer-parse-question'      => '(?:Вопрос|Question)[:\s]*',

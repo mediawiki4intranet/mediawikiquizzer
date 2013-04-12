@@ -130,6 +130,7 @@ class MediawikiQuizzer
         $dir = dirname(__FILE__);
         $wgExtNewTables[] = array('mwq_test', $dir.'/mwquizzer-tables.sql');
         $wgExtNewFields[] = array('mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql');
+        $wgExtNewFields[] = array('mwq_test', 'test_user_details', $dir.'/mwquizzer-patch-user_details.sql');
         return true;
     }
 

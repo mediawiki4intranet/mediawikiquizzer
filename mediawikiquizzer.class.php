@@ -108,9 +108,9 @@ class MediawikiQuizzerPage extends SpecialPage
     static function questionStatsHtml($correct, $complete)
     {
         global $egMWQuizzerEasyQuestionCompl, $egMWQuizzerHardQuestionCompl;
+        $style = '';
         if ($complete)
         {
-            $style = '';
             $percent = intval(100*$correct/$complete);
             $stat = wfMsg('mwquizzer-complete-stats', $correct,
                 $complete, $percent);
@@ -213,7 +213,7 @@ class MediawikiQuizzerPage extends SpecialPage
     function execute($par = null)
     {
         global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath;
-        $args = $wgRequest->getValues();
+        $args = $_GET+$_POST;
         wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
@@ -300,7 +300,7 @@ class MediawikiQuizzerPage extends SpecialPage
         if ($mode == 'print')
             $this->printTest($test, $args, $answers);
         else
-            $this->showTest($test, $args);
+            self::showTest($test, $args);
     }
 
     /* Return HTML content for "Please select test to review results" form */
@@ -308,7 +308,7 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         global $wgTitle;
         $form = '';
-        $form .= wfMsg('mwquizzer-quiz-id').': ';
+        $form .= wfMsg('mwquizzer-quiz').': ';
         $name = isset($args['quiz_name']) ? $args['quiz_name'] : '';
         $form .= self::xelement('input', array('type' => 'text', 'name' => 'quiz_name', 'value' => $name)) . ' ';
         $form .= Xml::submitButton(wfMsg('mwquizzer-select-tickets'));
@@ -566,7 +566,7 @@ class MediawikiQuizzerPage extends SpecialPage
     /*************/
 
     /* Get a table with question numbers linked to the appropriate questions */
-    function getToc($n, $trues = false)
+    static function getToc($n, $trues = false)
     {
         if ($n <= 0)
             return '';
@@ -597,7 +597,7 @@ class MediawikiQuizzerPage extends SpecialPage
     /* Get HTML ordered list with questions, choices,
        optionally radio-buttons for selecting them when $inputs is TRUE,
        and optionally edit question section links when $editsection is TRUE. */
-    function getQuestionList($questions, $inputs = false, $editsection = false)
+    static function getQuestionList($questions, $inputs = false, $editsection = false)
     {
         $html = '';
         foreach ($questions as $k => $q)
@@ -632,7 +632,7 @@ class MediawikiQuizzerPage extends SpecialPage
     }
 
     /* Get javascript code for HH:MM:SS counter */
-    function getCounterJs()
+    static function getCounterJs()
     {
         global $wgScriptPath;
         $format = wfMsg('mwquizzer-counter-format');
@@ -651,7 +651,7 @@ EOT;
     }
 
     /* Create a ticket and a secret key for testing, and remember the variant */
-    function createTicket($test)
+    static function createTicket($test)
     {
         global $wgUser;
         $key = unpack('H*', urandom(16));
@@ -679,11 +679,11 @@ EOT;
     }
 
     /* Display main form for testing */
-    function showTest($test, $args)
+    static function showTest($test, $args)
     {
-        global $wgTitle, $wgOut;
+        global $wgTitle, $wgOut, $wgRequest;
 
-        $ticket = $this->createTicket($test);
+        $ticket = self::createTicket($test);
         $action = $wgTitle->getFullUrl(array(
             'id'         => $test['test_id'],
             'ticket_id'  => $ticket['tk_id'],
@@ -691,20 +691,43 @@ EOT;
             'mode'       => 'check',
         ));
 
-        $form = '';
-        $form .= wfMsg('mwquizzer-prompt') . '&nbsp;' . Xml::input('prompt', 20);
+        // Prompt user displayname
+        $form = '<table>';
+        $form .= '<tr><td>' . wfMsg('mwquizzer-prompt') . '&nbsp;</td><td>';
+        $form .= Xml::input('prompt', 30, @$args['prompt']) . '</td></tr>';
+        // Prompt other fields
+        $fields = trim($test['test_user_details']);
+        if ($fields)
+        {
+            $form = '<p>'.wfMsg('mwquizzer-prompt-needed').'</p>'.$form;
+            foreach (explode(',', $fields) as $i => $field)
+            {
+                $field = trim($field);
+                $form .= '<tr><td>' . $field . ':&nbsp;</td><td>';
+                $form .= Xml::input('detail_'.$i, 30, @$args['detail_'.$i]) . '</td></tr>';
+            }
+        }
+        $form .= '</table>';
         $form .= self::xelement('p', NULL, Xml::submitButton(wfMsg('mwquizzer-submit')));
-        $form .= $this->getQuestionList($test['questions'], true);
-        $form .= Xml::element('hr');
-        $form .= Xml::submitButton(wfMsg('mwquizzer-submit'));
+        if (empty($args['a']))
+        {
+            $form .= self::getQuestionList($test['questions'], true);
+            $form .= Xml::element('hr');
+            $form .= Xml::submitButton(wfMsg('mwquizzer-submit'));
+        }
+        else
+        {
+            // Include hidden answers if the form is already submitted
+            $form .= Xml::input('a_values', false, json_encode($args['a'], JSON_UNESCAPED_UNICODE), array('type' => 'hidden'));
+        }
         $form = self::xelement('form', array('action' => $action, 'method' => 'POST'), $form);
 
-        $html = $this->getToc(count($test['questions']));
+        $html = self::getToc(count($test['questions']));
         if ($test['test_intro'])
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
         $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
         $html .= Xml::element('hr');
-        $html .= $this->getCounterJs();
+        $html .= self::getCounterJs();
         $html .= $form;
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-pagetitle', $test['test_name']));
@@ -724,7 +747,7 @@ EOT;
      * Note that read access to articles included into the quiz are not checked.
      * CSS page-break styles are specified so you can print this page.
      */
-    function printTest($test, $args, $answers = NULL)
+    static function printTest($test, $args, $answers = NULL)
     {
         global $wgOut;
         $html = '';
@@ -739,13 +762,13 @@ EOT;
         /* Display question list (with editsection links for admins) */
         $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-question-sheet'));
         $html .= $ti;
-        $html .= $this->getQuestionList($test['questions'], false, !empty($args['edit']) && $is_adm);
+        $html .= self::getQuestionList($test['questions'], false, !empty($args['edit']) && $is_adm);
 
         /* Display questionnaire */
         $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
         $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-test-sheet'));
         $html .= $ti;
-        $html .= $this->getCheckList($test, $args, false);
+        $html .= self::getCheckList($test, $args, false);
 
         /* Display questionnaire filled with user's answers */
         if ($answers !== NULL)
@@ -753,7 +776,7 @@ EOT;
             $html .= Xml::element('hr', array('style' => 'page-break-after: always'), '');
             $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-user-answers'));
             $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
-            $html .= $this->getCheckList($test, $args, false, $answers);
+            $html .= self::getCheckList($test, $args, false, $answers);
         }
 
         if ($is_adm)
@@ -761,7 +784,7 @@ EOT;
             /* Display check-list to users who can read source article */
             $html .= self::xelement('h2', array('style' => 'page-break-before: always'), wfMsg('mwquizzer-answer-sheet'));
             $html .= $ti;
-            $html .= $this->getCheckList($test, $args, true);
+            $html .= self::getCheckList($test, $args, true);
         }
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-print-pagetitle', $test['test_name']));
@@ -771,7 +794,7 @@ EOT;
     /* Display a table with question numbers, correct answers, statistics and labels when $checklist is TRUE
        Display a table with question numbers and two blank columns - "answer" and "remark" when $checklist is FALSE
        Display a table with question numbers and user answers when $answers is specified */
-    function getCheckList($test, $args, $checklist = false, $answers = NULL)
+    static function getCheckList($test, $args, $checklist = false, $answers = NULL)
     {
         $table = '';
         $table .= self::xelement('th', array('class' => 'mwq-tn'), wfMsg('mwquizzer-table-number'));
@@ -835,10 +858,14 @@ EOT;
     }
 
     /* Load answers from POST data, save them into DB and return as the result */
-    function checkAnswers($test, $ticket)
+    static function checkAnswers($test, $ticket)
     {
         $answers = array();
         $rows = array();
+        if (!empty($_POST['a_values']))
+        {
+            $_POST['a'] = json_decode($_POST['a_values']);
+        }
         foreach ($test['questions'] as $i => $q)
         {
             if (!empty($_POST['a'][$i]))
@@ -889,11 +916,36 @@ EOT;
         {
             /* Ticket already checked, load answers from database */
             $testresult['answers'] = self::loadAnswers($ticket['tk_id']);
+            $testresult['details'] = $ticket['tk_details'] ? json_decode($ticket['tk_details']) : array();
             $testresult['seen'] = true;
         }
         else
         {
             /* Else check POSTed answers */
+            $fields = trim($test['test_user_details']);
+            $values = array();
+            if ($fields)
+            {
+                $empty = trim($_REQUEST['prompt']);
+                $empty = empty($empty);
+                foreach (explode(',', $fields) as $i => $field)
+                {
+                    if (empty($_REQUEST["detail_$i"]))
+                    {
+                        $empty = true;
+                    }
+                    else
+                    {
+                        $values[trim($field)] = $_REQUEST["detail_$i"];
+                    }
+                }
+                if ($empty)
+                {
+                    self::showTest($test, $args);
+                    return false;
+                }
+            }
+            $testresult['details'] = $values;
             $testresult['answers'] = self::checkAnswers($test, $ticket);
             $testresult['seen'] = false;
             /* Need to send mail and update ticket in the DB */
@@ -922,6 +974,7 @@ EOT;
                 'tk_correct'         => $testresult['correct_count'],
                 'tk_correct_percent' => $testresult['correct_percent'],
                 'tk_pass'            => $testresult['passed'] ? 1 : 0,
+                'tk_details'         => $testresult['details'] ? json_encode($values, JSON_UNESCAPED_UNICODE) : '',
             );
             $ticket = array_merge($ticket, $update);
             $dbw = wfGetDB(DB_MASTER);
@@ -1093,6 +1146,11 @@ EOT;
 
         $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
         $testresult = self::checkOrLoadResult($ticket, $test, $args);
+        if (!$testresult)
+        {
+            // checkOrLoadResult had shown the detail form
+            return;
+        }
 
         $html = '';
         if ($testresult['seen'])
@@ -1245,9 +1303,10 @@ EOT;
     function getTutorHtml($ticket, $test, $testresult, $is_adm = false)
     {
         $items = array();
+        $html = '';
         foreach ($test['questions'] as $k => $q)
         {
-            $num = $testresult['answers'][$q['qn_hash']];
+            $num = @$testresult['answers'][$q['qn_hash']];
             if ($num && $q['choiceByNum'][$num]['ch_correct'])
                 continue;
             $items[$k] = true;
@@ -1274,7 +1333,7 @@ EOT;
             }
         }
         if ($items)
-            $html = $this->getToc(count($test['questions']), $items) . $html;
+            $html = self::getToc(count($test['questions']), $items) . $html;
         return $html;
     }
 
@@ -1411,7 +1470,7 @@ EOT;
         $skin = $wgUser->getSkin();
         $html = '';
         $tr = '';
-        foreach (explode(' ', 'ticket-id quiz-id quiz variant user start end duration ip score correct') as $i)
+        foreach (explode(' ', 'ticket-id quiz quiz-title variant user start end duration ip score correct') as $i)
             $tr .= self::xelement('th', NULL, wfMsg("mwquizzer-$i"));
         $html .= self::xelement('tr', NULL, $tr);
         // ID[LINK] TEST_ID TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
@@ -1429,15 +1488,12 @@ EOT;
             /* 2. Quiz name + link to its page + link to quiz form */
             if ($t['test_id'])
             {
-                if ($t['test_name'])
-                    $name = $t['test_name'];
-                else
-                    $name = $t['test_page_title'];
+                $name = $t['test_page_title'];
                 $testtry = $wgTitle->getFullUrl(array('id' => $t['test_id']));
                 $testhref = Title::newFromText('Quiz:'.$t['test_page_title'])->getFullUrl();
-                $tr[] = $t['test_id'];
                 $tr[] = self::xelement('a', array('href' => $testhref), $name) . ' (' .
                     self::xelement('a', array('href' => $testtry), wfMsg('mwquizzer-try')) . ')';
+                $tr[] = $t['test_name'] ?: $name;
             }
             /* Or 2. Quiz ID in the case when it is not found */
             else
@@ -1497,7 +1553,7 @@ EOT;
         global $wgTitle;
         $html = '';
         $html .= Html::hidden('mode', 'review');
-        $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz-id').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
+        $html .= Xml::inputLabel(wfMsg('mwquizzer-quiz').': ', 'quiz_name', 'quiz_name', 30, $info['quiz_name']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-variant').': ', 'variant_hash_crc32', 'variant_hash_crc32', 10, $info['variant_hash_crc32']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-user').': ', 'user_text', 'user_text', 30, $info['user_text']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-start').': ', 'start_time_min', 'start_time_min', 19, $info['start_time_min']);

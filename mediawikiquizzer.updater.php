@@ -19,6 +19,12 @@
  */
 class MediawikiQuizzerUpdater
 {
+    const FIELD_HTML = 0;
+    const FIELD_STRING = 1;
+    const FIELD_MODE = 2;
+    const FIELD_BOOL = 3;
+    const FIELD_INT = 4;
+
     static $test_field_types = array(
         'name' => 1,
         'intro' => 0,
@@ -28,7 +34,8 @@ class MediawikiQuizzerUpdater
         'limit_questions' => 4,
         'ok_percent' => 4,
         'autofilter_min_tries' => 4,
-        'autofilter_success_percent' => 4
+        'autofilter_success_percent' => 4,
+        'user_details' => 1,
     );
     static $test_default_values = array(
         'test_name' => '',

@@ -26,6 +26,8 @@ CREATE TABLE /*$wgDBPrefix*/mwq_test (
   test_limit_questions tinyint(4) not null default '0',
   -- percent of correct answers to pass
   test_ok_percent tinyint(3) not null default '80',
+  -- user details
+  test_user_details blob not null,
   -- each variant includes questions shown less than X times ("too new to filter")...
   test_autofilter_min_tries smallint not null,
   -- ...and questions with correct answer percent greater than Y ("too simple")
