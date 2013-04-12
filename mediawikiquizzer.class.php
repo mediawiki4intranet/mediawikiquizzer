@@ -46,6 +46,7 @@ class MediawikiQuizzerPage extends SpecialPage
         'check' => 1,
         'print' => 1,
         'review' => 1,
+        'qr' => 1,
     );
 
     static $questionInfoCache = array();
@@ -240,6 +241,11 @@ class MediawikiQuizzerPage extends SpecialPage
         {
             /* Check mode requires loading of a specific variant, so don't load random one */
             $this->checkTest($args);
+            return;
+        }
+        elseif ($mode == 'qr')
+        {
+            $this->qrCode($args);
             return;
         }
         elseif ($mode == 'review')
@@ -1125,6 +1131,36 @@ EOT;
         return $r;
     }
 
+    /* Draws a QR code with ticket check link */
+    function qrCode($args)
+    {
+        global $wgTitle, $IP;
+        $ticket = self::loadTicket($args['ticket_id'], $args['ticket_key']);
+        if (!$ticket)
+        {
+            $wgOut->showErrorPage('mwquizzer-check-no-ticket-title', 'mwquizzer-check-no-ticket-text', array($name, $href));
+            return;
+        }
+        require_once(dirname(__FILE__).'/phpqrcode.php');
+        if (is_writable("$IP/images"))
+        {
+            global $QR_CACHE_DIR, $QR_CACHEABLE;
+            $dir = "$IP/images/generated/qrcode/";
+            if (!file_exists($dir))
+            {
+                mkdir($dir, 0777, true);
+            }
+            $QR_CACHEABLE = true;
+            $QR_CACHE_DIR = $dir;
+        }
+        QRcode::png($wgTitle->getFullUrl(array(
+            'ticket_id' => $args['ticket_id'],
+            'ticket_key' => $args['ticket_key'],
+            'mode' => 'check',
+        )));
+        exit;
+    }
+
     /* Check mode: check selected choices if not already checked, 
        display results and completion certificate */
     function checkTest($args)
@@ -1148,7 +1184,7 @@ EOT;
         $testresult = self::checkOrLoadResult($ticket, $test, $args);
         if (!$testresult)
         {
-            // checkOrLoadResult had shown the detail form
+            // checkOrLoadResult had shown the detail form - user must fill in additional fields
             return;
         }
 
@@ -1205,6 +1241,7 @@ EOT;
     /* Get HTML code for result table (answers/score count/percent) */
     function getResultHtml($ticket, $test, $testresult)
     {
+        global $wgTitle;
         $row = self::xelement('th', NULL, wfMsg('mwquizzer-right-answers'))
              . self::xelement('th', NULL, wfMsg('mwquizzer-score-long'));
         $html = self::xelement('tr', NULL, $row);
@@ -1212,6 +1249,12 @@ EOT;
              . self::wrapResult($testresult['score'], $testresult['score_percent']);
         $html .= self::xelement('tr', NULL, $row);
         $html = self::xelement('table', array('class' => 'mwq-result'), $html);
+        // QR code
+        $html = '<img style="float: left; margin: 0 8px 8px 0" src="'.$wgTitle->getLocalUrl(array(
+            'ticket_id' => $ticket['tk_id'],
+            'ticket_key' => $ticket['tk_key'],
+            'mode' => 'qr',
+        )).'" />'.$html;
         $html = self::xelement('h2', NULL, wfMsg('mwquizzer-results')) . $html;
         $html .= self::xelement('p', array('class' => 'mwq-rand'), wfMsg('mwquizzer-random-correct', round($test['random_correct'], 1)));
         return $html;
