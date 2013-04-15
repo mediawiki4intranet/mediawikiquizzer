@@ -932,6 +932,7 @@ EOT;
             $values = array();
             if ($fields)
             {
+                // Check for empty user_details fields
                 $empty = trim($_REQUEST['prompt']);
                 $empty = empty($empty);
                 foreach (explode(',', $fields) as $i => $field)
@@ -947,6 +948,7 @@ EOT;
                 }
                 if ($empty)
                 {
+                    // Ask user to fill fields if some of them are empty
                     self::showTest($test, $args);
                     return false;
                 }
@@ -1205,7 +1207,7 @@ EOT;
         {
             if ($ticket['tk_reviewed'])
             {
-                $html .= wfMsg('mwquizzer-ticket-reviewed');
+                $html .= '<p>'.wfMsg('mwquizzer-ticket-reviewed').'</p>';
             }
             else
             {
@@ -1542,19 +1544,26 @@ EOT;
     }
 
     /* Get HTML table with tickets */
-    static function getTicketTable($tickets)
+    static function getTicketTable($tickets, $showDetails = false)
     {
         global $wgTitle, $wgUser;
         $skin = $wgUser->getSkin();
-        $html = '';
-        $tr = '';
+        $tr = array();
         foreach (explode(' ', 'ticket-id quiz quiz-title variant user start end duration ip score correct') as $i)
-            $tr .= self::xelement('th', NULL, wfMsg("mwquizzer-$i"));
-        $html .= self::xelement('tr', NULL, $tr);
+        {
+            $tr[] = self::xelement('th', NULL, wfMsg("mwquizzer-$i"));
+        }
+        $html = array($tr);
+        $detailKeys = array();
         // ID[LINK] TEST_ID TEST[LINK] VARIANT_CRC32 USER START END DURATION IP
-        foreach ($tickets as $i => $t)
+        foreach ($tickets as &$t)
         {
             $f = self::formatTicket($t);
+            if ($showDetails)
+            {
+                $t['tk_details'] = $t['tk_details'] ? json_decode($t['tk_details'], true) : array();
+                $detailKeys += $t['tk_details'];
+            }
             $tr = array();
             /* 1. Ticket ID + link to standard results page */
             $tr[] = self::xelement('a', array('href' => $wgTitle->getFullUrl(array(
@@ -1605,23 +1614,50 @@ EOT;
             /* 10. Correct answers count and % */
             $tr[] = self::wrapResult($t['tk_correct'], $t['tk_correct_percent'], '');
             /* Format HTML row */
-            $row = '';
+            $row = array();
             foreach ($tr as $i => &$td)
             {
                 $attr = array();
                 if ($i == 0 || $i == 1)
                 {
                     $attr['style'] = 'text-align: center';
+                    if ($i == 0 && !$t['tk_reviewed'])
+                    {
+                        // Mark non-reviewed rows
+                        $attr['class'] = 'mwq-incoming';
+                    }
                 }
                 elseif ($i == 8 || $i == 9)
                 {
                     $attr['class'] = $t['tk_pass'] ? 'mwq-pass' : 'mwq-fail';
                 }
-                $row .= self::xelement('td', $attr, $td);
+                $row[] = self::xelement('td', $attr, $td);
             }
-            $html .= self::xelement('tr', NULL, $row);
+            $html[] = $row;
         }
-        $html = self::xelement('table', array('class' => 'mwq-review'), $html);
+        if ($showDetails)
+        {
+            $detailKeys = array_keys($detailKeys);
+            foreach ($detailKeys as $k)
+            {
+                $html[0][] = self::xelement('th', NULL, htmlspecialchars($k));
+            }
+            foreach ($html as $i => &$row)
+            {
+                if ($i > 0)
+                {
+                    foreach ($detailKeys as $k)
+                    {
+                        $row[] = self::xelement('td', NULL, @$tickets[$i-1]['tk_details'][$k]);
+                    }
+                }
+            }
+        }
+        foreach ($html as $i => &$row)
+        {
+            $row = self::xelement('tr', NULL, implode('', $row));
+        }
+        $html = self::xelement('table', array('class' => 'mwq-review'), implode('', $html));
         return $html;
     }
 
@@ -1638,7 +1674,8 @@ EOT;
         $html .= Xml::inputLabel(wfMsg('mwquizzer-to'), 'start_time_max', 'start_time_max', 19, $info['start_time_max']) . '<br />';
         $html .= Xml::inputLabel(wfMsg('mwquizzer-end').': ', 'end_time_min', 'end_time_min', 19, $info['end_time_min']);
         $html .= Xml::inputLabel(wfMsg('mwquizzer-to'), 'end_time_max', 'end_time_max', 19, $info['end_time_max']) . '<br />';
-        $html .= Xml::inputLabel(wfMsg('mwquizzer-perpage').': ', 'perpage', 'perpage', 5, $info['perpage']) . '<br />';
+        $html .= Xml::inputLabel(wfMsg('mwquizzer-perpage').': ', 'perpage', 'perpage', 5, $info['perpage']) . ' &nbsp; ';
+        $html .= Xml::checkLabel(wfMsg('mwquizzer-show-details'), 'show_details', 'show_details', $info['show_details']) . '<br />';
         $html .= Xml::submitButton(wfMsg('mwquizzer-select-tickets'));
         $html = self::xelement('form', array('method' => 'GET', 'action' => $wgTitle->getFullUrl(), 'class' => 'mwq-select-tickets'), $html);
         return $html;
@@ -1650,12 +1687,13 @@ EOT;
         global $wgOut;
         $html = '';
         $result = self::selectTickets($args);
+        $result['info']['show_details'] = !empty($args['show_details']);
         $html .= self::selectTicketForm($result['info']);
         if ($result['total'])
             $html .= self::xelement('p', NULL, wfMsg('mwquizzer-ticket-count', $result['total'], 1 + $result['page']*$result['perpage'], count($result['tickets'])));
         else
             $html .= self::xelement('p', NULL, wfMsg('mwquizzer-no-tickets'));
-        $html .= self::getTicketTable($result['tickets']);
+        $html .= self::getTicketTable($result['tickets'], !empty($args['show_details']));
         $html .= self::getPages($result['info'], ceil($result['total'] / $result['perpage']), $result['page']);
         $wgOut->setPageTitle(wfMsg('mwquizzer-review-pagetitle'));
         $wgOut->addHTML($html);

@@ -102,6 +102,7 @@ Then click "Select results" again.',
     'mwquizzer-duration'                => 'Duration',
     'mwquizzer-ip'                      => 'IP address',
     'mwquizzer-perpage'                 => 'Count on one page',
+    'mwquizzer-show-details'            => 'show user details',
     'mwquizzer-score'                   => 'Score',
     'mwquizzer-correct'                 => 'Correct',
 
@@ -219,6 +220,7 @@ $messages['ru'] = array(
     'mwquizzer-duration'                => 'Длительность',
     'mwquizzer-ip'                      => 'IP-адрес',
     'mwquizzer-perpage'                 => 'На странице',
+    'mwquizzer-show-details'            => 'показать анкеты',
     'mwquizzer-score'                   => 'Очки',
     'mwquizzer-correct'                 => 'Ответы',
 

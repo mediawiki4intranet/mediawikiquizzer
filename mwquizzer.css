@@ -21,6 +21,7 @@
 .mwq-fail { background-color: #ffe0e0; }
 .mwq-pass { background-color: #e0ffe0; }
 .mwq-fail-bd { background-color: #ffe0e0; font-weight: bold; }
+.mwq-incoming { font-weight: bold; }
 @media print {
     .headline, #siteSub, .printfooter, #footer { display: none; }
     .mwq-questionnaire td, .mwq-questionnaire th, .mwq-checklist td, .mwq-checklist th { white-space: nowrap; }
