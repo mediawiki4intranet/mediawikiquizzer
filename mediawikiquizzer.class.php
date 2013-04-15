@@ -1246,14 +1246,16 @@ EOT;
 
         if ($testresult['passed'] && ($ticket['tk_displayname'] || $ticket['tk_user_id']))
         {
-            $html .= Xml::element('hr');
+            $html .= Xml::element('hr', array('style' => 'clear: both'));
             $html .= $this->getCertificateHtml($ticket, $test, $testresult);
         }
 
         /* Display answers also for links from result review table (showtut=1)
            to users who are admins or have read access to quiz source */
         if ($test['test_mode'] == 'TUTOR' || !empty($args['showtut']) && $is_adm)
+        {
             $html .= $this->getTutorHtml($ticket, $test, $testresult, $is_adm);
+        }
 
         $wgOut->setPageTitle(wfMsg('mwquizzer-check-pagetitle', $test['test_name']));
         $wgOut->addHTML($html);
@@ -1405,7 +1407,11 @@ EOT;
             }
         }
         if ($items)
-            $html = self::getToc(count($test['questions']), $items) . $html;
+        {
+            $html = self::getToc(count($test['questions']), $items) .
+                Xml::element('div', array('style' => 'clear: both'), false) .
+                $html;
+        }
         return $html;
     }
 
