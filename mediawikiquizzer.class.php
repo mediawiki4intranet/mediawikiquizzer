@@ -64,7 +64,7 @@ class MediawikiQuizzerPage extends SpecialPage
         wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer-page.css");
         /* Load the test without questions */
-        $quiz = self::loadTest($test_title, NULL, true);
+        $quiz = self::loadTest(array('name' => $test_title), NULL, true);
         if (!$quiz)
             return;
         $s = Title::newFromText('Special:MediawikiQuizzer');
@@ -227,8 +227,9 @@ class MediawikiQuizzerPage extends SpecialPage
             $id = $args['id'];
         elseif (isset($args['id_test']))
             $name = $args['id_test']; // backward compatibility
-        if ($name)
-            $id = Title::newFromText("Quiz:$name");
+        // Do not create Title from name because it will lead to permission errors
+        // for unauthorized users in case of IntraACL Quiz: namespace protection
+        $id = $name ? array('name' => $name) : array('id' => $id);
 
         $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
@@ -373,17 +374,28 @@ class MediawikiQuizzerPage extends SpecialPage
         return false;
     }
 
-    /* Load a test from database. Optionally shuffle/limit questions and answers,
-       compute variant ID (sequence hash) and scores. */
-    static function loadTest($idOrTitle, $variant = NULL, $without_questions = false)
+    /**
+     * Load a test from database. Optionally shuffle/limit questions and answers,
+     * compute variant ID (sequence hash) and scores.
+     * $cond = array('id' => int $testId)
+     * or $cond = array('name' => string $testName)
+     * or $cond = array('name' => Title $testTitle)
+     */
+    static function loadTest($cond, $variant = NULL, $without_questions = false)
     {
         global $wgOut;
         $dbr = wfGetDB(DB_SLAVE);
 
-        if ($idOrTitle instanceof Title)
-            $where = array('test_page_title' => $idOrTitle->getText());
-        else
-            $where = array('test_id' => $idOrTitle);
+        if (!empty($cond['id']))
+            $where = array('test_id' => $cond['id']);
+        elseif (!empty($cond['name']))
+        {
+            if ($cond['name'] instanceof Title)
+                $cond['name'] = $cond['name']->getText();
+            else
+                $cond['name'] = str_replace('_', ' ', $cond['name']);
+            $where = array('test_page_title' => $cond['name']);
+        }
         $result = $dbr->select('mwq_test', '*', $where, __METHOD__);
         $test = $dbr->fetchRow($result);
         $dbr->freeResult($result);
@@ -1000,7 +1012,7 @@ EOT;
     {
         if ($ticket['tk_end_time'] === NULL)
             return;
-        $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
+        $test = self::loadTest(array('id' => $ticket['tk_test_id']), $ticket['tk_variant']);
         $testresult = self::checkOrLoadResult($ticket, $test, array());
         $update = array(
             /* Testing result to be shown in the table.
@@ -1175,7 +1187,7 @@ EOT;
         {
             if ($args['id'])
             {
-                $test = self::loadTest($args['id']);
+                $test = self::loadTest(array('id' => $args['id']));
                 $name = $test['test_name'];
                 $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
             }
@@ -1183,7 +1195,7 @@ EOT;
             return;
         }
 
-        $test = self::loadTest($ticket['tk_test_id'], $ticket['tk_variant']);
+        $test = self::loadTest(array('id' => $ticket['tk_test_id']), $ticket['tk_variant']);
         $testresult = self::checkOrLoadResult($ticket, $test, $args);
         if (!$testresult)
         {
