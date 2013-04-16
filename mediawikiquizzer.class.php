@@ -51,13 +51,13 @@ class MediawikiQuizzerPage extends SpecialPage
 
     static $questionInfoCache = array();
 
-    var $is_adm = NULL;
+    static $is_adm = NULL;
 
-    /********************/
-    /*  STATIC METHODS  */
-    /********************/
+    /**
+     * Methods used in hooks outside Special:MediawikiQuizzer
+     */
 
-    /* Display parse log and quiz actions for parsed quiz article */
+    // Display parse log and quiz actions for parsed quiz article
     static function quizArticleInfo($test_title)
     {
         global $wgOut, $wgScriptPath;
@@ -131,7 +131,7 @@ class MediawikiQuizzerPage extends SpecialPage
         return $stat;
     }
 
-    /* Display quiz question statistics near editsection link */
+    // Display quiz question statistics near editsection link
     static function quizQuestionInfo($title, $section, &$result)
     {
         $k = $title->getPrefixedDBkey();
@@ -180,23 +180,23 @@ class MediawikiQuizzerPage extends SpecialPage
         return Xml::openElement($element, $attribs) . $contents . Xml::closeElement($element);
     }
 
-    /********************/
-    /*  OBJECT METHODS  */
-    /********************/
+    /**
+     * Methods used on special page
+     */
 
     /* Constructor */
     function __construct()
     {
         global $IP, $wgScriptPath, $wgUser, $wgParser, $wgEmergencyContact;
-        SpecialPage::SpecialPage('MediawikiQuizzer');
+        parent::__construct('MediawikiQuizzer');
     }
 
     /* Check if the user is an administrator for the test $name */
-    function isAdminForTest($name)
+    static function isAdminForTest($name)
     {
-        if ($this->is_adm === NULL)
-            $this->is_adm = MediawikiQuizzer::isTestAdmin();
-        if ($this->is_adm)
+        if (self::$is_adm === NULL)
+            self::$is_adm = MediawikiQuizzer::isTestAdmin();
+        if (self::$is_adm)
             return true;
         if ($name || !is_object($name) && strlen($name))
         {
@@ -220,14 +220,15 @@ class MediawikiQuizzerPage extends SpecialPage
 
         $mode = isset($args['mode']) ? $args['mode'] : '';
 
+        $name = $id = false;
         if ($par)
-            $id = $par;
+            $name = $par;
         elseif (isset($args['id']))
             $id = $args['id'];
         elseif (isset($args['id_test']))
-            $id = Title::newFromText('Quiz:'.$args['id_test']); // backward compatibility
-        else
-            $id = '';
+            $name = $args['id_test']; // backward compatibility
+        if ($name)
+            $id = Title::newFromText("Quiz:$name");
 
         $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
