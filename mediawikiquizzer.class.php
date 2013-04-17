@@ -220,16 +220,15 @@ class MediawikiQuizzerPage extends SpecialPage
 
         $mode = isset($args['mode']) ? $args['mode'] : '';
 
-        $name = $id = false;
-        if ($par)
-            $name = $par;
-        elseif (isset($args['id']))
-            $id = $args['id'];
-        elseif (isset($args['id_test']))
-            $name = $args['id_test']; // backward compatibility
         // Do not create Title from name because it will lead to permission errors
         // for unauthorized users in case of IntraACL Quiz: namespace protection
-        $id = $name ? array('name' => $name) : array('id' => $id);
+        $id = false;
+        if ($par)
+            $id = array('name' => $par);
+        elseif (isset($args['id']))
+            $id = array('id' => $args['id']);
+        elseif (isset($args['id_test']))
+            $id = array('name' => $args['id_test']); // backward compatibility
 
         $is_adm = self::isAdminForTest(NULL);
         $default_mode = false;
