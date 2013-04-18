@@ -1205,9 +1205,10 @@ EOT;
         $html = '';
         if ($testresult['seen'])
         {
-            $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
-            $html .= wfMsg('mwquizzer-variant-already-seen', $href);
+            $html .= wfMsg('mwquizzer-variant-already-seen').' ';
         }
+        $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
+        $html .= wfMsg('mwquizzer-try-another', $href);
 
         $f = self::formatTicket($ticket);
         $html .= wfMsg('mwquizzer-ticket-details',
