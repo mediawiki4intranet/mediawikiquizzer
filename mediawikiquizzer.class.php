@@ -61,7 +61,6 @@ class MediawikiQuizzerPage extends SpecialPage
     static function quizArticleInfo($test_title)
     {
         global $wgOut, $wgScriptPath;
-        wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer-page.css");
         /* Load the test without questions */
         $quiz = self::loadTest(array('name' => $test_title), NULL, true);
@@ -215,7 +214,6 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath;
         $args = $_GET+$_POST;
-        wfLoadExtensionMessages('MediawikiQuizzer');
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
         $mode = isset($args['mode']) ? $args['mode'] : '';

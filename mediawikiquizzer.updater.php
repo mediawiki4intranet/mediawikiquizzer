@@ -94,7 +94,6 @@ class MediawikiQuizzerUpdater
     {
         global $egMWQuizzerContLang;
         $lang = $egMWQuizzerContLang ? $egMWQuizzerContLang : true;
-        wfLoadExtensionMessages('MediawikiQuizzer');
         $test_regexp = array();
         $qn_regexp = array();
         self::$test_keys = array_keys(self::$test_field_types);
