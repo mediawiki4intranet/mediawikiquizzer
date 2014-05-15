@@ -272,7 +272,7 @@ class MediawikiQuizzerPage extends SpecialPage
         if ($mode == 'print' && !empty($args['ticket_id']) && !empty($args['ticket_key']) &&
             ($ticket = self::loadTicket($args['ticket_id'], $args['ticket_key'])))
         {
-            $id = $ticket['tk_test_id'];
+            $id = array('id' => $ticket['tk_test_id']);
             $variant = $ticket['tk_variant'];
             $answers = self::loadAnswers($ticket['tk_id']);
         }
@@ -841,7 +841,7 @@ EOT;
                     $row .= '<td></td>';
                 $row .= '<td>'.$q['qn_label'].'</td>';
             }
-            elseif ($answers && $answers[$q['qn_hash']])
+            elseif ($answers && !empty($answers[$q['qn_hash']]))
             {
                 $ans = $q['choiceByNum'][$answers[$q['qn_hash']]];
                 $row .= '<td>'.$ans['index'].'</td><td'.($ans['ch_correct'] ? '' : ' class="mwq-fail-bd"').'>'.
