@@ -156,7 +156,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 preg_match('/\\|(\d+)$/', $obj->qn_anchor, $m);
                 self::$questionInfoCache[$k][$m[1]] = $obj;
             }
-            if (!self::$questionInfoCache[$k])
+            if (empty(self::$questionInfoCache[$k]))
                 self::$questionInfoCache[$k] = NULL;
         }
         preg_match('/\d+/', $section, $m);
