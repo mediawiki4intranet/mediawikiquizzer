@@ -1001,7 +1001,7 @@ EOT;
         else
         {
             /* Else check POSTed answers */
-            $empty = empty(trim($_REQUEST['prompt']));
+            $empty = trim(@$_REQUEST['prompt']) === '';
             $formdef = self::formDef($test);
             $values = array();
             if ($formdef)
