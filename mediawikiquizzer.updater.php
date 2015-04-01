@@ -37,6 +37,19 @@ class MediawikiQuizzerUpdater
         'autofilter_success_percent' => 4,
         'user_details' => 1,
     );
+    static $form_field_types = array(
+        // 'name'  => array('field type', is_mandatory, is_multiple),
+        'text'     => array('html', false, false),
+        'name'     => array('name', true, false),
+        'm-fields' => array('text', true, true),
+        'm-field'  => array('text', true, false),
+        'fields'   => array('text', false, true),
+        'field'    => array('text', false, false),
+        'm-checks' => array('checkbox', true, true),
+        'm-check'  => array('checkbox', true, false),
+        'checks'   => array('checkbox', false, true),
+        'check'    => array('checkbox', false, false),
+    );
     static $test_default_values = array(
         'test_name' => '',
         'test_intro' => '',
@@ -48,8 +61,8 @@ class MediawikiQuizzerUpdater
         'test_autofilter_min_tries' => 0,
         'test_autofilter_success_percent' => 90,
     );
-    static $test_keys;
-    static $regexp_test, $regexp_test_nq, $regexp_question, $regexp_true, $regexp_correct;
+    static $test_keys, $form_keys;
+    static $regexp_test, $regexp_test_nq, $regexp_question, $regexp_true, $regexp_correct, $regexp_form;
     static $qn_keys = array('choice', 'choices', 'correct', 'corrects', 'label', 'explanation', 'comments');
 
     /* Parse wiki-text $text without TOC, heading numbers and EditSection links turned on */
@@ -96,18 +109,30 @@ class MediawikiQuizzerUpdater
         $lang = $egMWQuizzerContLang ? $egMWQuizzerContLang : true;
         $test_regexp = array();
         $qn_regexp = array();
+        $form_regexp = array();
         self::$test_keys = array_keys(self::$test_field_types);
+        self::$form_keys = array_keys(self::$form_field_types);
         foreach (self::$test_keys as $k)
+        {
             $test_regexp[] = '('.wfMsgReal("mwquizzer-parse-test_$k", NULL, true, $lang, false).')';
+        }
         foreach (self::$qn_keys as $k)
+        {
             $qn_regexp[] = '('.wfMsgReal("mwquizzer-parse-$k", NULL, true, $lang, false).')';
+        }
+        foreach (self::$form_field_types as $k => $def)
+        {
+            $form_regexp[] = '('.wfMsgReal("mwquizzer-parse-form-$k", NULL, true, $lang, false).')';
+        }
         $test_regexp_nq = $test_regexp;
         array_unshift($test_regexp, '('.wfMsgReal('mwquizzer-parse-question', NULL, true, $lang, false).')');
+        array_unshift($test_regexp, '('.wfMsgReal('mwquizzer-parse-form', NULL, true, $lang, false).')');
         self::$regexp_test = str_replace('/', '\\/', implode('|', $test_regexp));
-        self::$regexp_test_nq = '()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
+        self::$regexp_test_nq = '()()'.str_replace('/', '\\/', implode('|', $test_regexp_nq));
         self::$regexp_question = str_replace('/', '\\/', implode('|', $qn_regexp));
         self::$regexp_true = wfMsgReal('mwquizzer-parse-true', NULL, true, $lang, false);
         self::$regexp_correct = wfMsgReal('mwquizzer-parse-correct', NULL, true, $lang, false);
+        self::$regexp_form = str_replace('/', '\\/', implode('|', $form_regexp));
     }
 
     /* Transform quiz field value according to its type */
@@ -168,6 +193,8 @@ class MediawikiQuizzerUpdater
     const ST_PARAM_DD = 2;  /* Waiting for <dd> with quiz field value */
     const ST_CHOICE = 3;    /* Inside single choice section */
     const ST_CHOICES = 4;   /* Inside multiple choices section */
+    const ST_FORM = 5;      /* Inside form section */
+    const ST_FORM_DD = 6;   /* Waiting for <dd> with form field name(s) */
 
     /* parseQuiz() using a state machine :-) */
     static function parseQuiz2($html)
@@ -180,9 +207,11 @@ class MediawikiQuizzerUpdater
         $st = self::ST_OUTER;   /* State index */
         $append = NULL;         /* Array(&$str) or NULL. When array(&$str), content is appended to $str. */
         /* Variables: */
+        $form = array();        /* Form definition */
         $q = array();           /* Questions */
         $quiz = self::$test_default_values; /* Quiz field => value */
         $field = '';            /* Current parsed field */
+        $checkbox_name = '';    /* Checkbox field name */
         $correct = 0;           /* Is current choice(s) section for correct choices */
         /* Loop through all elements: */
         while ($stack)
@@ -229,8 +258,14 @@ class MediawikiQuizzerUpdater
                     $chk = DOMParseUtils::checkNode($e, self::$regexp_test, true);
                     if ($chk)
                     {
-                        /* Question section */
+                        /* Form section */
                         if ($chk[1][0][0])
+                        {
+                            $log .= "[INFO] Begin form section: $log_el\n";
+                            $st = self::ST_FORM;
+                        }
+                        /* Question section */
+                        elseif ($chk[1][1][0])
                         {
                             if ($q)
                                 self::checkLastQuestion($q, $log);
@@ -255,7 +290,7 @@ class MediawikiQuizzerUpdater
                             $append = array(&$q[count($q)-1]['qn_text']);
                         }
                         /* Quiz parameter */
-                        elseif ($st == self::ST_OUTER || $st == self::ST_PARAM_DD)
+                        elseif ($st == self::ST_OUTER || $st == self::ST_PARAM_DD || $st == self::ST_FORM || $st == self::ST_FORM_DD)
                         {
                             $st = self::ST_OUTER;
                             $field = '';
@@ -263,7 +298,7 @@ class MediawikiQuizzerUpdater
                             {
                                 if ($c[0])
                                 {
-                                    $field = self::$test_keys[$i-1];
+                                    $field = self::$test_keys[$i-2]; /* -2 because there are two extra (question) and (form) keys in the beginning */
                                     break;
                                 }
                             }
@@ -355,6 +390,74 @@ class MediawikiQuizzerUpdater
                         $fall = true;
                     }
                 }
+                /* <dt> for form field */
+                elseif (($st == self::ST_FORM || $st == self::ST_FORM_DD) && $e->nodeName == 'dt')
+                {
+                    $chk = DOMParseUtils::checkNode($e, self::$regexp_form, true);
+                    $log_el = '; ' . trim(strip_tags(DOMParseUtils::saveChildren($e))) . ':';
+                    if ($chk)
+                    {
+                        $field = '';
+                        foreach ($chk[1] as $i => $c)
+                        {
+                            if ($c[0])
+                            {
+                                $field = self::$form_keys[$i];
+                                break;
+                            }
+                        }
+                        if ($field)
+                        {
+                            $checkbox_name = self::$form_field_types[$field][0] == 'checkbox' ? trim(DOMParseUtils::saveChildren($chk[0], true)) : '';
+                            /* Form field - found */
+                            $log .= "[INFO] Begin definition list item for quiz field \"$field\": $log_el\n";
+                            $st = self::ST_FORM_DD;
+                        }
+                        else
+                        {
+                            /* This should never happen ! */
+                            $line = __FILE__.':'.__LINE__;
+                            $log .= "[ERROR] MYSTICAL BUG: Unknown quiz field at $line in: $log_el\n";
+                        }
+                    }
+                    else
+                    {
+                        /* INFO: unknown <dt> key */
+                        $log .= "[WARN] Unparsed definition list item: $log_el\n";
+                        $fall = true;
+                    }
+                }
+                /* Form field(s) of type $field */
+                elseif ($st == self::ST_FORM_DD && $e->nodeName == 'dd')
+                {
+                    $value = DOMParseUtils::saveChildren($e);
+                    if (self::$form_field_types[$field][2])
+                    {
+                        $value = array_map('trim', explode(',', $value));
+                    }
+                    else
+                    {
+                        $value = array($value);
+                    }
+                    foreach ($value as $v)
+                    {
+                        $f = array(
+                            'name' => $checkbox_name ? $checkbox_name : $v,
+                            'type' => self::$form_field_types[$field][0],
+                            'mandatory' => self::$form_field_types[$field][1],
+                            'value' => $checkbox_name ? $v : '1',
+                        );
+                        if ($f['type'] != 'checkbox')
+                        {
+                            unset($f['value']);
+                        }
+                        $log .= "[INFO] Parsed".($f['mandatory'] ? " mandatory" : "")." ".$f['type']." field: ".
+                            self::textlog($f['name']).($f['type'] == 'checkbox' ? ' = '.self::textlog($f['value']) : '')."\n";
+                        $form[] = $f;
+                    }
+                    $st = self::ST_FORM;
+                    $field = '';
+                }
                 /* <dt> for a parameter */
                 elseif (($st == self::ST_OUTER || $st == self::ST_PARAM_DD) && $e->nodeName == 'dt')
                 {
@@ -362,13 +465,12 @@ class MediawikiQuizzerUpdater
                     $log_el = '; ' . trim(strip_tags(DOMParseUtils::saveChildren($e))) . ':';
                     if ($chk)
                     {
-                        $st = self::ST_OUTER;
                         $field = '';
                         foreach ($chk[1] as $i => $c)
                         {
                             if ($c[0])
                             {
-                                $field = self::$test_keys[$i-1];
+                                $field = self::$test_keys[$i-2]; /* -2 because there are two extra (question) and (form) keys in the beginning */
                                 break;
                             }
                         }
@@ -392,9 +494,9 @@ class MediawikiQuizzerUpdater
                         $fall = true;
                     }
                 }
+                /* Value for quiz parameter $field */
                 elseif ($st == self::ST_PARAM_DD && $e->nodeName == 'dd')
                 {
-                    /* Value for $field */
                     $value = self::transformFieldValue($field, DOMParseUtils::saveChildren($e));
                     $log .= "[INFO] Quiz $field = ".self::textlog($value)."\n";
                     $quiz["test_$field"] = $value;
@@ -456,6 +558,19 @@ class MediawikiQuizzerUpdater
         if ($q)
             self::checkLastQuestion($q, $log);
         $quiz['questions'] = $q;
+        if (!empty($quiz['test_user_details']))
+        {
+            /* Compatibility with older "Ask User:" */
+            foreach (explode(',', $quiz['test_user_details']) as $f)
+            {
+                $f = trim($f);
+                if ($f)
+                {
+                    $form[] = array($f, 'text', true);
+                }
+            }
+        }
+        $quiz['test_user_details'] = json_encode($form, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $quiz['test_log'] = $log;
         return $quiz;
     }

@@ -652,17 +652,28 @@ class MediawikiQuizzerPage extends SpecialPage
     {
         global $wgScriptPath;
         $format = wfMsg('mwquizzer-counter-format');
+        $already = wfMsg('mwquizzer-refresh-to-retry');
         return <<<EOT
-<script language="JavaScript">
-BackColor = "white";
-ForeColor = "navy";
-CountActive = true;
-CountStepper = 1;
-LeadingZero = true;
-DisplayFormat = "$format";
-FinishMessage = "";
+<script type="text/javascript">
+var BackColor = "white";
+var ForeColor = "navy";
+var CountActive = true;
+var CountStepper = 1;
+var LeadingZero = true;
+var DisplayFormat = "$format";
+var FinishMessage = "";
+$(window).unload(function() {
+    // Prevent fast unload to bfcache
+});
+$(window).load(function()
+{
+    if (document.getElementById('_submitted').value && confirm('$already'))
+    {
+        window.location.href = window.location.href;
+    }
+});
 </script>
-<script language="JavaScript" src="$wgScriptPath/extensions/mediawikiquizzer/countdown.js"></script>
+<script type="text/javascript" src="$wgScriptPath/extensions/mediawikiquizzer/countdown.js"></script>
 EOT;
     }
 
@@ -694,6 +705,26 @@ EOT;
         return $ticket;
     }
 
+    static function formDef($test)
+    {
+        $fields = trim($test['test_user_details']);
+        $found_name = false;
+        $formdef = array();
+        if ($fields)
+        {
+            if ($fields{0} != '[' ||
+                !($formdef = @json_decode($test['test_user_details'], true)))
+            {
+                $def = array();
+                foreach (explode(',', $fields) as $f)
+                {
+                    $formdef[] = array('name' => $f, 'type' => 'text', 'mandatory' => true);
+                }
+            }
+        }
+        return $formdef;
+    }
+
     /* Display main form for testing */
     static function showTest($test, $args)
     {
@@ -707,23 +738,50 @@ EOT;
             'mode'       => 'check',
         ));
 
-        // Prompt user displayname
-        $form = '<table>';
-        $form .= '<tr><td>' . wfMsg('mwquizzer-prompt') . '&nbsp;</td><td>';
-        $form .= Xml::input('prompt', 30, @$args['prompt']) . '</td></tr>';
-        // Prompt other fields
-        $fields = trim($test['test_user_details']);
-        if ($fields)
+        $form = '';
+        $formdef = self::formDef($test);
+        $found_name = false;
+        $mandatory = '<span style="color:red" title="'.wfMsg('mwquizzer-prompt-needed').'">*</span>';
+        if ($formdef)
         {
-            $form = '<p>'.wfMsg('mwquizzer-prompt-needed').'</p>'.$form;
-            foreach (explode(',', $fields) as $i => $field)
+            foreach ($formdef as $i => $field)
             {
-                $field = trim($field);
-                $form .= '<tr><td>' . $field . ':&nbsp;</td><td>';
-                $form .= Xml::input('detail_'.$i, 30, @$args['detail_'.$i]) . '</td></tr>';
+                if ($field['type'] == 'name')
+                {
+                    if ($found_name)
+                    {
+                        $field['type'] = 'text';
+                    }
+                    $found_name = true;
+                }
+                if ($field['type'] == 'name' || $field['type'] == 'text')
+                {
+                    $nm = $field['type'] == 'name' ? 'prompt' : "detail_$i";
+                    $form .= '<tr><th><label for="'.$nm.'">' . trim($field['name']) . ($field['mandatory'] ? $mandatory : '') .
+                        ':</label></th><td><input type="text" name="'.$nm.'" id="'.$nm.'" size="40" value="'.htmlspecialchars(@$args[$nm]).'" /></td></tr>';
+                }
+                elseif ($field['type'] == 'html')
+                {
+                    $form .= '<tr><td colspan="2">'.$field['name'].'</td></tr>';
+                }
+                elseif ($field['type'] == 'checkbox')
+                {
+                    $form .= '<tr><td colspan="2"><input type="checkbox" name="detail_'.$i.'" id="detail_'.$i.
+                        '" value="'.htmlspecialchars($field['value']).'"'.(@$args["detail_$i"] ? ' checked="checked"' : '').' /> '.
+                        '<label for="detail_'.$i.'">'.($field['mandatory'] ? $mandatory.' ' : '').
+                        ($field['value'] == '1' ? $field['name'] : $field['value']).
+                        '</label></td></tr>';
+                }
             }
         }
-        $form .= '</table>';
+        if (!$found_name)
+        {
+            // Prompt user displayname
+            $form = '<tr><th>' . wfMsg('mwquizzer-prompt') . $mandatory . ':</th><td>'.
+                Xml::input('prompt', 30, @$args['prompt']) . '</td></tr>' .
+                $form;
+        }
+        $form = '<table class="mwq-form">'.$form.'</table>';
         $form .= self::xelement('p', NULL, Xml::submitButton(wfMsg('mwquizzer-submit')));
         if (empty($args['a']))
         {
@@ -736,11 +794,14 @@ EOT;
             // Include hidden answers if the form is already submitted
             $form .= Xml::input('a_values', false, json_encode($args['a'], JSON_UNESCAPED_UNICODE), array('type' => 'hidden'));
         }
-        $form = self::xelement('form', array('action' => $action, 'method' => 'POST'), $form);
+        $form .= '<input type="hidden" name="_submitted" id="_submitted" value="" />';
+        $form = self::xelement('form', array('action' => $action, 'method' => 'POST', 'onsubmit' => 'this._submitted.value = 1;'), $form);
 
         $html = self::getToc(count($test['questions']));
         if ($test['test_intro'])
+        {
             $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
+        }
         $html .= wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
         $html .= Xml::element('hr');
         $html .= self::getCounterJs();
@@ -773,7 +834,9 @@ EOT;
         /* TestInfo */
         $ti = wfMsg('mwquizzer-variant-msg', $test['variant_hash_crc32']);
         if ($test['test_intro'])
+        {
             $ti = self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']) . $ti;
+        }
 
         /* Display question list (with editsection links for admins) */
         $html .= self::xelement('h2', NULL, wfMsg('mwquizzer-question-sheet'));
@@ -938,22 +1001,42 @@ EOT;
         else
         {
             /* Else check POSTed answers */
-            $fields = trim($test['test_user_details']);
+            $empty = empty(trim($_REQUEST['prompt']));
+            $formdef = self::formDef($test);
             $values = array();
-            if ($fields)
+            if ($formdef)
             {
-                // Check for empty user_details fields
-                $empty = trim($_REQUEST['prompt']);
-                $empty = empty($empty);
-                foreach (explode(',', $fields) as $i => $field)
+                // Check for empty form fields
+                foreach ($formdef as $i => $field)
                 {
-                    if (empty($_REQUEST["detail_$i"]))
+                    if ($field['type'] == 'name' || $field['type'] == 'html')
+                    {
+                        // Don't check name field (= prompt)
+                    }
+                    elseif ($field['mandatory'] && empty($_REQUEST["detail_$i"]))
                     {
                         $empty = true;
                     }
-                    else
+                    elseif (!$field['mandatory'] || $field['type'] != 'checkbox')
                     {
-                        $values[trim($field)] = $_REQUEST["detail_$i"];
+                        // Saving mandatory checkboxes is pointless, they're just a confirmation of something and always true
+                        $n = trim($field['name']);
+                        $v = !empty($_REQUEST["detail_$i"]) ? $_REQUEST["detail_$i"] : '';
+                        if ($field['type'] == 'checkbox' && $v)
+                        {
+                            $v = $field['value'];
+                        }
+                        if (isset($values[$n]))
+                        {
+                            if ($v)
+                            {
+                                $values[trim($field['name'])] .= ", $v";
+                            }
+                        }
+                        else
+                        {
+                            $values[trim($field['name'])] = $v;
+                        }
                     }
                 }
                 if ($empty)
@@ -1173,7 +1256,7 @@ EOT;
         exit;
     }
 
-    /* Check mode: check selected choices if not already checked, 
+    /* Check mode: check selected choices if not already checked,
        display results and completion certificate */
     function checkTest($args)
     {
@@ -1208,6 +1291,11 @@ EOT;
         $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
         $html .= wfMsg('mwquizzer-try-another', $href);
 
+        if ($test['test_intro'])
+        {
+            $html .= self::xelement('div', array('class' => 'mwq-intro mwq-intro-finish'), $test['test_intro']);
+        }
+
         $f = self::formatTicket($ticket);
         $html .= wfMsg('mwquizzer-ticket-details',
             $f['name'], $f['start'], $f['end'], $f['duration']
@@ -1238,11 +1326,6 @@ EOT;
                 $html .= '<li>'.htmlspecialchars($k).': '.htmlspecialchars($v).'</li>';
             }
             $html .= '</ul>';
-        }
-
-        if ($test['test_intro'])
-        {
-            $html .= self::xelement('div', array('class' => 'mwq-intro'), $test['test_intro']);
         }
 
         if ($is_adm)

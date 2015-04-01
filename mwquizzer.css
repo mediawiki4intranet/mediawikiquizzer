@@ -1,3 +1,5 @@
+.mwq-intro-finish .begin-only { display: none; }
+.mwq-form th { text-align: left; width: 1%; white-space: nowrap; font-weight: normal; }
 .mwq-toc { border-collapse: separate; empty-cells: hide; }
 .mwq-toc td { border: 1px solid gray; padding: 4px 8px; text-align: center; width: 1.5em; }
 .mwq-count { font-weight: bold; }
