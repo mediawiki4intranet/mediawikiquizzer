@@ -726,7 +726,7 @@ EOT;
     }
 
     /* Display main form for testing */
-    static function showTest($test, $args)
+    static function showTest($test, $args, $empty = false)
     {
         global $wgTitle, $wgOut, $wgRequest;
 
@@ -782,6 +782,10 @@ EOT;
                 $form;
         }
         $form = '<table class="mwq-form">'.$form.'</table>';
+        if ($empty)
+        {
+            $form = '<p class="error">'.wfMsg('mwquizzer-empty').'</p>'.$form;
+        }
         $form .= self::xelement('p', NULL, Xml::submitButton(wfMsg('mwquizzer-submit')));
         if (empty($args['a']))
         {
@@ -1042,7 +1046,7 @@ EOT;
                 if ($empty)
                 {
                     // Ask user to fill fields if some of them are empty
-                    self::showTest($test, $args);
+                    self::showTest($test, $args, true);
                     return false;
                 }
             }
