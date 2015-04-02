@@ -1030,16 +1030,16 @@ EOT;
                         {
                             $v = $field['value'];
                         }
-                        if (isset($values[$n]))
+                        if (!empty($values[$n]))
                         {
                             if ($v)
                             {
-                                $values[trim($field['name'])] .= ", $v";
+                                $values[$n] .= ", $v";
                             }
                         }
                         else
                         {
-                            $values[trim($field['name'])] = $v;
+                            $values[$n] = $v;
                         }
                     }
                 }
