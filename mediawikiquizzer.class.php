@@ -1586,25 +1586,25 @@ EOT;
             $u = $dbr->addQuotes($u);
             $where[] = "(INSTR(tk_user_text,$u)>0 OR INSTR(tk_displayname,$u)>0)";
         }
-        if ($d = $args['start_time_min'])
+        if (($d = $args['start_time_min']) && ($ts = wfTimestamp(TS_MW, $d)))
         {
             $info['start_time_min'] = $d;
-            $where[] = "tk_start_time>=".wfTimestamp($d, TS_MW);
+            $where[] = "tk_start_time>=$ts";
         }
-        if ($d = $args['start_time_max'])
+        if (($d = $args['start_time_max']) && ($ts = wfTimestamp(TS_MW, $d)))
         {
             $info['start_time_max'] = $d;
-            $where[] = "tk_start_time<=".wfTimestamp($d, TS_MW);
+            $where[] = "tk_start_time<=$ts";
         }
-        if ($d = $args['end_time_min'])
+        if (($d = $args['end_time_min']) && ($ts = wfTimestamp(TS_MW, $d)))
         {
             $info['end_time_min'] = $d;
-            $where[] = "tk_end_time>=".wfTimestamp($d, TS_MW);
+            $where[] = "tk_end_time>=$ts";
         }
-        if ($d = $args['end_time_max'])
+        if (($d = $args['end_time_max']) && ($ts = wfTimestamp(TS_MW, $d)))
         {
             $info['end_time_max'] = $d;
-            $where[] = "tk_end_time<=".wfTimestamp($d, TS_MW);
+            $where[] = "tk_end_time<=$ts";
         }
         $tickets = array();
         if (!($perpage = $args['perpage']))
