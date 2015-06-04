@@ -713,7 +713,7 @@ EOT;
         if ($fields)
         {
             if ($fields{0} != '[' ||
-                !($formdef = @json_decode($test['test_user_details'], true)))
+                ($formdef = @json_decode($test['test_user_details'], true)) === NULL)
             {
                 $def = array();
                 foreach (explode(',', $fields) as $f)
