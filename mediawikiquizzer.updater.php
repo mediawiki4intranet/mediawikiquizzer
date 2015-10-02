@@ -177,12 +177,14 @@ class MediawikiQuizzerUpdater
                     $ncorrect++;
         if (!$lq['choices'] || !count($lq['choices']))
             $log .= "[ERROR] No choices defined for question: ".self::textlog($lq['qn_text'])."\n";
-        elseif ($ncorrect >= $lq['choices'])
-            $log .= "[ERROR] All choices are correct for question: ".self::textlog($lq['qn_text'])."\n";
         elseif (!$ncorrect)
             $log .= "[ERROR] No correct choices for question: ".self::textlog($lq['qn_text'])."\n";
         else
+        {
             $ok = true;
+            if ($ncorrect >= count($lq['choices']))
+                $log .= "[INFO] All choices are marked correct, question will be free-text: ".self::textlog($lq['qn_text'])."\n";
+        }
         if (!$ok)
             array_pop($questions);
     }

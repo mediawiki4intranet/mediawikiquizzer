@@ -54,6 +54,7 @@ Then click "Select results" again.',
     'mwquizzer-review-pagetitle'        => 'MediaWiki Quizzer — review test results',
 
     'mwquizzer-question'                => 'Question $1',
+    'mwquizzer-freetext'                => 'Enter your answer:',
     'mwquizzer-counter-format'          => '%%H%%:%%M%%:%%S%% elapsed.',
     'mwquizzer-refresh-to-retry'        => 'This form is already sent. To retry the quiz you must reload the page. Reload the page?',
     'mwquizzer-prompt'                  => 'Your name',
@@ -187,6 +188,7 @@ $messages['ru'] = array(
     'mwquizzer-review-pagetitle'        => 'Опросы MediaWiki — просмотр результатов',
 
     'mwquizzer-question'                => 'Вопрос $1',
+    'mwquizzer-freetext'                => 'Ответ:',
     'mwquizzer-counter-format'          => 'Прошло %%H%%:%%M%%:%%S%%.',
     'mwquizzer-refresh-to-retry'        => 'Эта форма уже отправлена. Обновить страницу, чтобы пройти тест ещё раз?',
     'mwquizzer-prompt'                  => 'Ваше имя',

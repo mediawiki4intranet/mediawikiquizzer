@@ -335,11 +335,6 @@ class MediawikiQuizzerPage extends SpecialPage
             /* No correct choices defined for this question, skip it */
             wfDebug(__CLASS__.": Skipping $hash, no correct choices!\n");
         }
-        elseif (!$var && $q['correct_count'] >= count($q['choices']))
-        {
-            /* All choices for this question are defined as correct, skip it */
-            wfDebug(__CLASS__.": Skipping $hash, all choices defined as correct!\n");
-        }
         else
         {
             if (isset($q['ch_order']))
@@ -362,7 +357,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 // add 1/n for correct answers
                 $q['score_correct'] = 1;
                 // subtract 1/(m-n) for incorrect answers, so universal mean would be 0
-                $q['score_incorrect'] = -$q['correct_count'] / (count($q['choices']) - $q['correct_count']);
+                $q['score_incorrect'] = $q['correct_count'] < count($q['choices']) ? -$q['correct_count'] / (count($q['choices']) - $q['correct_count']) : 0;
             }
             foreach ($q['choices'] as $i => &$c)
                 $c['index'] = $i+1;
@@ -626,23 +621,32 @@ class MediawikiQuizzerPage extends SpecialPage
             $html .= self::xelement('h3', NULL, $h);
             $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
             $choices = '';
-            foreach($q['choices'] as $i => $c)
+            if ($q['correct_count'] >= count($q['choices']))
             {
+                /* This is a free-text question */
                 if ($inputs)
-                {
-                    /* Question hashes and choice numbers are hidden from user.
-                       They are taken from ticket during check. */
-                    $h = Xml::element('input', array(
-                        'name' => "a[$k]",
-                        'type' => 'radio',
-                        'value' => $i+1,
-                    )) . '&nbsp;' . $c['ch_text'];
-                }
-                else
-                    $h = $c['ch_text'];
-                $choices .= self::xelement('li', array('class' => 'mwq-choice'), $h);
+                    $html .= wfMsg('mwquizzer-freetext').' '.self::xelement('input', array('name' => "a[$k]", 'type' => 'text'));
             }
-            $html .= self::xelement('ol', array('class' => 'mwq-choices'), $choices);
+            else
+            {
+                foreach($q['choices'] as $i => $c)
+                {
+                    if ($inputs)
+                    {
+                        /* Question hashes and choice numbers are hidden from user.
+                           They are taken from ticket during check. */
+                        $h = Xml::element('input', array(
+                            'name' => "a[$k]",
+                            'type' => 'radio',
+                            'value' => $i+1,
+                        )) . '&nbsp;' . $c['ch_text'];
+                    }
+                    else
+                        $h = $c['ch_text'];
+                    $choices .= self::xelement('li', array('class' => 'mwq-choice'), $h);
+                }
+                $html .= self::xelement('ol', array('class' => 'mwq-choices'), $choices);
+            }
         }
         return $html;
     }
@@ -894,11 +898,13 @@ EOT;
             $row = '<td>'.($k+1).'</td>';
             if ($checklist)
             {
-                /* build a list of correct choice indexes in the shuffled array */
+                /* build a list of correct choice indexes in the shuffled array (or texts for free-text questions) */
                 $correct_indexes = array();
                 foreach ($q['correct_choices'] as $c)
-                    $correct_indexes[] = $c['index'];
-                $row .= '<td>'.implode(', ', $correct_indexes).'</td>';
+                {
+                    $correct_indexes[] = $q['correct_count'] < count($q['choices']) ? $c['index'] : $c['ch_text'];
+                }
+                $row .= '<td>'.htmlspecialchars(implode(', ', $correct_indexes)).'</td>';
                 if ($q['tries'])
                 {
                     $row .= '<td>' . $q['correct_tries'] . '/' . $q['tries'] .
@@ -910,9 +916,10 @@ EOT;
             }
             elseif ($answers && !empty($answers[$q['qn_hash']]))
             {
-                $ans = $q['choiceByNum'][$answers[$q['qn_hash']]];
-                $row .= '<td>'.$ans['index'].'</td><td'.($ans['ch_correct'] ? '' : ' class="mwq-fail-bd"').'>'.
-                    wfMsg('mwquizzer-is-'.($ans['ch_correct'] ? 'correct' : 'incorrect')).'</td>';
+                $ans = $answers[$q['qn_hash']];
+                $ch = !empty($ans['cs_choice_num']) ? $q['choiceByNum'][$ans['cs_choice_num']] : NULL;
+                $row .= '<td>'.($ch ? $ch['index'] : $ans['cs_text']).'</td><td'.($ans['cs_correct'] ? '' : ' class="mwq-fail-bd"').'>'.
+                    wfMsg('mwquizzer-is-'.($ans['cs_correct'] ? 'correct' : 'incorrect')).'</td>';
             }
             else
                 $row .= '<td></td><td></td>';
@@ -935,7 +942,7 @@ EOT;
             'cs_ticket' => $ticket_id,
         ), __FUNCTION__);
         while ($row = $dbr->fetchRow($result))
-            $answers[$row['cs_question_hash']] = $row['cs_choice_num'];
+            $answers[$row['cs_question_hash']] = $row;
         $dbr->freeResult($result);
         return $answers;
     }
@@ -953,14 +960,30 @@ EOT;
         {
             if (!empty($_POST['a'][$i]))
             {
-                $n = $_POST['a'][$i]-1;
-                $is_correct = $q['choices'][$n]['ch_correct'] ? 1 : 0;
-                $answers[$q['qn_hash']] = $q['choices'][$n]['ch_num'];
+                $n = $_POST['a'][$i];
+                if ($q['correct_count'] >= count($q['choices']))
+                {
+                    // Free-text question
+                    $n = trim($n);
+                    $is_correct = false;
+                    foreach ($q['choices'] as $ch)
+                        if ($n === $ch['ch_text'])
+                            $is_correct = true;
+                    $text = $n;
+                    $num = 0;
+                }
+                else
+                {
+                    $is_correct = $q['choices'][$n-1]['ch_correct'] ? 1 : 0;
+                    $text = NULL;
+                    $num = $q['choices'][$n-1]['ch_num'];
+                }
                 /* Build rows for saving answers into database */
-                $rows[] = array(
+                $rows[] = $answers[$q['qn_hash']] = array(
                     'cs_ticket'        => $ticket['tk_id'],
                     'cs_question_hash' => $q['qn_hash'],
-                    'cs_choice_num'    => $q['choices'][$n]['ch_num'],
+                    'cs_choice_num'    => $num,
+                    'cs_text'          => $text,
                     'cs_correct'       => $is_correct,
                 );
             }
@@ -973,9 +996,9 @@ EOT;
     /* Calculate scores based on $testresult['answers'] ($hash => $num) */
     static function calculateScores(&$testresult, &$test)
     {
-        foreach ($testresult['answers'] as $hash => $n)
+        foreach ($testresult['answers'] as $hash => $row)
         {
-            $c = $test['questionByHash'][$hash]['choiceByNum'][$n]['ch_correct'] ? 1 : 0;
+            $c = $row['cs_correct'] ? 1 : 0;
             $testresult['correct_count'] += $c;
             $testresult['score'] += $test['questionByHash'][$hash][$c ? 'score_correct' : 'score_incorrect'];
         }
@@ -1122,10 +1145,10 @@ EOT;
         {
             $msg_q = wfMsg('mwquizzer-question', $i+1);
             if (isset($testresult['answers'][$q['qn_hash']]))
-                $num = $testresult['answers'][$q['qn_hash']];
+                $row = $testresult['answers'][$q['qn_hash']];
             else
-                $num = NULL;
-            if (!$num || !$q['choiceByNum'][$num]['ch_correct'])
+                $row = NULL;
+            if (!$row || !$row['cs_correct'])
             {
                 $qn_text = trim(strip_tags($q['qn_text']));
                 $ch_correct = trim(strip_tags($q['correct_choices'][0]['ch_text']));
@@ -1133,10 +1156,10 @@ EOT;
                 $lab = trim(strip_tags($q['qn_label']));
                 if ($lab)
                     $lab .= ' | ';
-                if ($num)
+                if ($row)
                 {
-                    $ch_user = trim(strip_tags($q['choiceByNum'][$num]['ch_text']));
-                    $ch_user = "--------------------------------------------------------------------------------\n$msg_y: [№$num] $ch_user\n";
+                    $ch_user = !empty($row['cs_choice_num']) ? "[№$num] ".trim(strip_tags($q['choiceByNum'][$row['cs_choice_num']]['ch_text'])) : $row['cs_text'];
+                    $ch_user = "--------------------------------------------------------------------------------\n$msg_y: $ch_user\n";
                 }
                 else
                     $ch_user = '';
@@ -1480,8 +1503,8 @@ EOT;
         $html = '';
         foreach ($test['questions'] as $k => $q)
         {
-            $num = @$testresult['answers'][$q['qn_hash']];
-            if ($num && $q['choiceByNum'][$num]['ch_correct'])
+            $row = @$testresult['answers'][$q['qn_hash']];
+            if ($row && $row['cs_correct'])
                 continue;
             $items[$k] = true;
             $correct = $q['correct_choices'][0];
@@ -1500,10 +1523,10 @@ EOT;
                 $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-explanation'));
                 $html .= self::xelement('div', array('class' => 'mwq-explanation'), $q['qn_explanation']);
             }
-            if ($num)
+            if ($row)
             {
                 $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-your-answer'));
-                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), $q['choiceByNum'][$num]['ch_text']);
+                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), !empty($row['cs_choice_num']) ? $q['choiceByNum'][$row['cs_choice_num']]['ch_text'] : $row['cs_text']);
             }
         }
         if ($items)

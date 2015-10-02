@@ -132,6 +132,7 @@ class MediawikiQuizzer
         $wgExtNewFields[] = array('mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql');
         $wgExtNewFields[] = array('mwq_test', 'test_user_details', $dir.'/mwquizzer-patch-user_details.sql');
         $wgExtNewFields[] = array('mwq_ticket', 'tk_reviewed', $dir.'/mwquizzer-patch-tk_reviewed.sql');
+        $wgExtNewFields[] = array('mwq_choice_stats', 'cs_text', $dir.'/mwquizzer-patch-freetext.sql');
         return true;
     }
 

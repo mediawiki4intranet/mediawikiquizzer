@@ -124,6 +124,8 @@ CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
   cs_choice_num int unsigned not null,
   -- is this answer correct?
   cs_correct tinyint(1) not null,
+  -- free-text answer
+  cs_text text,
   KEY (cs_question_hash)
 ) /*$wgDBTableOptions*/;
 
