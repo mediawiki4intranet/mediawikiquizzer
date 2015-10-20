@@ -69,7 +69,7 @@ class MediawikiQuizzerUpdater
     static $parser = NULL, $parserOptions;
     static function parse($article, $text)
     {
-        global $wgParser;
+        global $wgUser;
         /* Compatibility with MagicNumberedHeadings extension */
         if (defined('MAG_NUMBEREDHEADINGS') && ($mag = MagicWord::get(MAG_NUMBEREDHEADINGS)))
             $mag->matchAndRemove($text);
@@ -80,11 +80,11 @@ class MediawikiQuizzerUpdater
         MediawikiQuizzer::$disableQuestionInfo = true;
         if (!self::$parser)
         {
-            self::$parser = clone $wgParser;
-            self::$parserOptions = clone $wgParser->mOptions;
-            self::$parserOptions->mNumberHeadings = false;
-            self::$parserOptions->mEditSection = true;
-            self::$parserOptions->mIsSectionPreview = true;
+            self::$parser = new Parser;
+            self::$parserOptions = new ParserOptions($wgUser);
+            self::$parserOptions->setNumberHeadings(false);
+            self::$parserOptions->setEditSection(true);
+            self::$parserOptions->setIsSectionPreview(true);
         }
         $html = self::$parser->parse("__NOTOC__\n$text", $article->getTitle(), self::$parserOptions)->getText();
         MediawikiQuizzer::$disableQuestionInfo = false;
@@ -248,11 +248,14 @@ class MediawikiQuizzerUpdater
                     $editsection = NULL;
                     if ($e->childNodes->length)
                     {
-                        $span = $e->childNodes->item(0);
-                        if ($span->nodeName == 'span' && $span->getAttribute('class') == 'editsection')
+                        foreach ($e->childNodes as $span)
                         {
-                            $e->removeChild($span);
-                            $editsection = $document->saveXML($span);
+                            if ($span->nodeName == 'span' && ($span->getAttribute('class') == 'editsection' ||
+                                $span->getAttribute('class') == 'mw-editsection'))
+                            {
+                                $e->removeChild($span);
+                                $editsection = $document->saveXML($span);
+                            }
                         }
                     }
                     $log_el = $log_el . self::textlog($e) . $log_el;

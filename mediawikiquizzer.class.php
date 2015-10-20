@@ -203,7 +203,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 $title = $name;
             else
                 $title = Title::newFromText($name, NS_QUIZ);
-            if ($title && $title->exists() && $title->userCanRead())
+            if ($title && $title->exists() && $title->userCan('read'))
                 return true;
         }
         return false;
