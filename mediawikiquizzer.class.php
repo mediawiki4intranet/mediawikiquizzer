@@ -693,7 +693,7 @@ EOT;
             $userid = NULL;
         $dbw = wfGetDB(DB_MASTER);
         $ticket = array(
-            'tk_id'          => $dbw->nextSequenceValue('tk_id'),
+            'tk_id'          => $dbw->nextSequenceValue('mwq_ticket_tk_id_seq'),
             'tk_key'         => $key,
             'tk_start_time'  => $start,
             'tk_end_time'    => NULL,
