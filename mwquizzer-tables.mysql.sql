@@ -7,7 +7,7 @@
 -- perform any needed database setup.
 --
 
-CREATE TABLE /*$wgDBPrefix*/mwq_test (
+CREATE TABLE /*$wgDBprefix*/mwq_test (
   -- test ID,
   test_id int unsigned not null auto_increment,
   -- test page title
@@ -39,7 +39,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_test (
   UNIQUE KEY (test_page_title)
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE /*$wgDBPrefix*/mwq_question (
+CREATE TABLE /*$wgDBprefix*/mwq_question (
   -- question ID (md5 hash of question text)
   qn_hash binary(32) not null,
   -- question text
@@ -55,7 +55,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_question (
   PRIMARY KEY (qn_hash)
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE /*$wgDBPrefix*/mwq_question_test (
+CREATE TABLE /*$wgDBprefix*/mwq_question_test (
   -- test ID
   qt_test_id int unsigned not null,
   -- question hash
@@ -65,7 +65,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_question_test (
   PRIMARY KEY (qt_test_id, qt_num)
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE /*$wgDBPrefix*/mwq_choice (
+CREATE TABLE /*$wgDBprefix*/mwq_choice (
   -- question hash
   ch_question_hash binary(32) not null,
   -- choice index number inside the question
@@ -77,7 +77,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_choice (
   PRIMARY KEY (ch_question_hash, ch_num)
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
+CREATE TABLE /*$wgDBprefix*/mwq_ticket (
   -- ticket ID
   tk_id int unsigned not null auto_increment,
   -- ticket key
@@ -115,7 +115,7 @@ CREATE TABLE /*$wgDBPrefix*/mwq_ticket (
   PRIMARY KEY (tk_id)
 ) /*$wgDBTableOptions*/;
 
-CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
+CREATE TABLE /*$wgDBprefix*/mwq_choice_stats (
   -- ticket ID
   cs_ticket int unsigned not null,
   -- question hash
@@ -131,10 +131,10 @@ CREATE TABLE /*$wgDBPrefix*/mwq_choice_stats (
 
 -- Create foreign keys (InnoDB only)
 
-ALTER TABLE /*$wgDBPrefix*/mwq_question_test ADD FOREIGN KEY (qt_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_question_test ADD FOREIGN KEY (qt_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_choice ADD FOREIGN KEY (ch_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_ticket ADD FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBPrefix*/mwq_test (test_id) ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_ticket ADD FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBPrefix*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_choice_stats ADD FOREIGN KEY (cs_question_hash) REFERENCES /*$wgDBPrefix*/mwq_question (qn_hash) ON UPDATE CASCADE;
-ALTER TABLE /*$wgDBPrefix*/mwq_choice_stats ADD FOREIGN KEY (cs_ticket) REFERENCES /*$wgDBPrefix*/mwq_ticket (tk_id) ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_question_test ADD FOREIGN KEY (qt_test_id) REFERENCES /*$wgDBprefix*/mwq_test (test_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_question_test ADD FOREIGN KEY (qt_question_hash) REFERENCES /*$wgDBprefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_choice ADD FOREIGN KEY (ch_question_hash) REFERENCES /*$wgDBprefix*/mwq_question (qn_hash) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_ticket ADD FOREIGN KEY (tk_test_id) REFERENCES /*$wgDBprefix*/mwq_test (test_id) ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_ticket ADD FOREIGN KEY (tk_user_id) REFERENCES /*$wgDBprefix*/user (user_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_choice_stats ADD FOREIGN KEY (cs_question_hash) REFERENCES /*$wgDBprefix*/mwq_question (qn_hash) ON UPDATE CASCADE;
+ALTER TABLE /*$wgDBprefix*/mwq_choice_stats ADD FOREIGN KEY (cs_ticket) REFERENCES /*$wgDBprefix*/mwq_ticket (tk_id) ON UPDATE CASCADE;

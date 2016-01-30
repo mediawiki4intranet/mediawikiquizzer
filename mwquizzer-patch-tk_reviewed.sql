@@ -6,4 +6,4 @@
 -- In normal conditions, maintenance/update.php should perform any needed database setup.
 --
 
-ALTER TABLE /*$wgDBPrefix*/mwq_ticket ADD tk_reviewed tinyint(1) not null default 0 AFTER tk_details;
+ALTER TABLE /*$wgDBprefix*/mwq_ticket ADD tk_reviewed tinyint(1) not null default 0 AFTER tk_details;
