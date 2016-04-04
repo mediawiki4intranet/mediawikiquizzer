@@ -69,7 +69,7 @@ class MediawikiQuizzerPage extends SpecialPage
             return;
         $s = Title::newFromText('Special:MediawikiQuizzer');
         $actions = array(
-            'try'   => $s->getFullUrl(array('id' => $quiz['test_id'])),
+            'try'   => $s->getFullUrl(array('id' => $quiz['test_id']) + ($quiz['test_secret'] ? array('mode' => 'getticket') : array())),
             'print' => $s->getFullUrl(array('id' => $quiz['test_id'], 'mode' => 'print')),
         );
         $wgOut->addHTML(wfMsg(($quiz['test_secret'] ? 'mwquizzer-actions-secret' : 'mwquizzer-actions'), $quiz['test_name'], $actions['try'], $actions['print']));
