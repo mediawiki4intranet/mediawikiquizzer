@@ -124,17 +124,38 @@ class MediawikiQuizzer
     }
 
     // Hook for maintenance/update.php
-    static function LoadExtensionSchemaUpdates()
+    static function LoadExtensionSchemaUpdates($updater)
     {
-        global $wgExtNewTables, $wgExtNewFields, $wgDBtype;
+        global $wgDBtype;
         $dir = dirname(__FILE__);
-        $wgExtNewTables[] = array('mwq_test', $dir.'/mwquizzer-tables.'.$wgDBtype.'.sql');
-        if ($wgDBtype == 'mysql')
+        if ($updater)
         {
-            $wgExtNewFields[] = array('mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql');
-            $wgExtNewFields[] = array('mwq_test', 'test_user_details', $dir.'/mwquizzer-patch-user_details.sql');
-            $wgExtNewFields[] = array('mwq_ticket', 'tk_reviewed', $dir.'/mwquizzer-patch-tk_reviewed.sql');
-            $wgExtNewFields[] = array('mwq_choice_stats', 'cs_text', $dir.'/mwquizzer-patch-freetext.sql');
+            $updater->addExtensionUpdate(array('addTable', 'mwq_test', $dir.'/mwquizzer-tables.'.$wgDBtype.'.sql', true));
+            if ($wgDBtype == 'mysql')
+            {
+                $updater->addExtensionUpdate(array('addField', 'mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql', true));
+                $updater->addExtensionUpdate(array('addField', 'mwq_test', 'test_user_details', $dir.'/mwquizzer-patch-user_details.sql', true));
+                $updater->addExtensionUpdate(array('addField', 'mwq_ticket', 'tk_reviewed', $dir.'/mwquizzer-patch-tk_reviewed.sql', true));
+                $updater->addExtensionUpdate(array('addField', 'mwq_choice_stats', 'cs_text', $dir.'/mwquizzer-patch-freetext.sql', true));
+                $updater->addExtensionUpdate(array('addField', 'mwq_test', 'test_secret', $dir.'/mwquizzer-patch-test_secret.sql', true));
+            }
+            elseif ($wgDBtype == 'postgres')
+                $updater->addExtensionUpdate(array('addField', 'mwq_test', 'test_secret', $dir.'/mwquizzer-patch-test_secret-postgres.sql', true));
+        }
+        else
+        {
+            global $wgExtNewTables, $wgExtNewFields;
+            $wgExtNewTables[] = array('mwq_test', $dir.'/mwquizzer-tables.'.$wgDBtype.'.sql');
+            if ($wgDBtype == 'mysql')
+            {
+                $wgExtNewFields[] = array('mwq_test', 'test_page_title', $dir.'/mwquizzer-patch-test_id.sql');
+                $wgExtNewFields[] = array('mwq_test', 'test_user_details', $dir.'/mwquizzer-patch-user_details.sql');
+                $wgExtNewFields[] = array('mwq_ticket', 'tk_reviewed', $dir.'/mwquizzer-patch-tk_reviewed.sql');
+                $wgExtNewFields[] = array('mwq_choice_stats', 'cs_text', $dir.'/mwquizzer-patch-freetext.sql');
+                $wgExtNewFields[] = array('mwq_test', 'test_secret', $dir.'/mwquizzer-patch-test_secret.sql');
+            }
+            elseif ($wgDBtype == 'postgres')
+                $wgExtNewFields[] = array('mwq_test', 'test_secret', $dir.'/mwquizzer-patch-test_secret-postgres.sql');
         }
         return true;
     }

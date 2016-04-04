@@ -47,6 +47,7 @@ class MediawikiQuizzerPage extends SpecialPage
         'print' => 1,
         'review' => 1,
         'qr' => 1,
+        'getticket' => 1,
     );
 
     static $questionInfoCache = array();
@@ -71,7 +72,7 @@ class MediawikiQuizzerPage extends SpecialPage
             'try'   => $s->getFullUrl(array('id' => $quiz['test_id'])),
             'print' => $s->getFullUrl(array('id' => $quiz['test_id'], 'mode' => 'print')),
         );
-        $wgOut->addHTML(wfMsg('mwquizzer-actions', $quiz['test_name'], $actions['try'], $actions['print']));
+        $wgOut->addHTML(wfMsg(($quiz['test_secret'] ? 'mwquizzer-actions-secret' : 'mwquizzer-actions'), $quiz['test_name'], $actions['try'], $actions['print']));
         /* Display log */
         $log = $quiz['test_log'];
         if ($log)
@@ -267,14 +268,19 @@ class MediawikiQuizzerPage extends SpecialPage
         }
 
         /* Allow viewing ticket variant with specified key for print mode */
-        $variant = NULL;
-        $answers = NULL;
-        if ($mode == 'print' && !empty($args['ticket_id']) && !empty($args['ticket_key']) &&
+        $variant = $answers = $ticket = NULL;
+        if (($mode == 'print' || $mode == 'show') &&
+            !empty($args['ticket_id']) && !empty($args['ticket_key']) &&
             ($ticket = self::loadTicket($args['ticket_id'], $args['ticket_key'])))
         {
             $id = array('id' => $ticket['tk_test_id']);
             $variant = $ticket['tk_variant'];
             $answers = self::loadAnswers($ticket['tk_id']);
+            if ($mode == 'show' && $ticket['tk_end_time'])
+            {
+                $this->checkTest($args);
+                return;
+            }
         }
 
         /* Raise error when no test is specified for mode=print or mode=show */
@@ -296,7 +302,8 @@ class MediawikiQuizzerPage extends SpecialPage
 
         /* Load random or specific test variant */
         $test = self::loadTest($id, $variant);
-        if (!$test)
+        if (!$test ||
+            $test['test_secret'] && !self::isAdminForTest($test['test_id']) && !$ticket)
         {
             $wgOut->showErrorPage('mwquizzer-test-not-found-title', 'mwquizzer-test-not-found-text');
             return;
@@ -304,8 +311,10 @@ class MediawikiQuizzerPage extends SpecialPage
 
         if ($mode == 'print')
             $this->printTest($test, $args, $answers);
+        elseif ($mode == 'getticket')
+            self::showTicket($test);
         else
-            self::showTest($test, $args);
+            self::showTest($test, $ticket, $args);
     }
 
     /* Return HTML content for "Please select test to review results" form */
@@ -682,12 +691,11 @@ EOT;
     }
 
     /* Create a ticket and a secret key for testing, and remember the variant */
-    static function createTicket($test)
+    static function createTicket($test, $start)
     {
         global $wgUser;
         $key = unpack('H*', urandom(16));
         $key = $key[1];
-        $start = wfTimestampNow(TS_MW);
         $userid = $wgUser->getId();
         if (!$userid)
             $userid = NULL;
@@ -729,12 +737,46 @@ EOT;
         return $formdef;
     }
 
+    static function showTicket($test)
+    {
+        global $wgOut, $wgTitle;
+        $ticket = self::createTicket($test, NULL);
+        $link = $wgTitle->getFullUrl(array(
+            'id'         => $test['test_id'],
+            'ticket_id'  => $ticket['tk_id'],
+            'ticket_key' => $ticket['tk_key'],
+        ));
+        $wgOut->setPageTitle(wfMsg('mwquizzer-pagetitle', $test['test_name']));
+        $wgOut->addHTML(
+            wfMsg('mwquizzer-ticket-link').': <a href="'.$link.'">'.htmlspecialchars($link).'</a>'
+        );
+    }
+
     /* Display main form for testing */
-    static function showTest($test, $args, $empty = false)
+    static function showTest($test, $ticket, $args, $empty = false)
     {
         global $wgTitle, $wgOut, $wgRequest;
 
-        $ticket = self::createTicket($test);
+        if (!$ticket)
+            $ticket = self::createTicket($test, wfTimestampNow(TS_MW));
+        elseif ($ticket['tk_end_time'])
+            die('BUG: ticket is already answered');
+        elseif (!$ticket['tk_start_time'])
+        {
+            global $wgUser;
+            $userid = $wgUser->getId();
+            if (!$userid)
+                $userid = NULL;
+            $update = array(
+                'tk_start_time' => wfTimestampNow(TS_MW),
+                'tk_user_id'     => $userid,
+                'tk_user_text'   => $wgUser->getName(),
+                'tk_user_ip'     => wfGetIP(),
+            );
+            $ticket = array_merge($ticket, $update);
+            $dbw = wfGetDB(DB_MASTER);
+            $dbw->update('mwq_ticket', $update, array('tk_id' => $ticket['tk_id']), __METHOD__);
+        }
         $action = $wgTitle->getFullUrl(array(
             'id'         => $test['test_id'],
             'ticket_id'  => $ticket['tk_id'],
@@ -1069,7 +1111,7 @@ EOT;
                 if ($empty)
                 {
                     // Ask user to fill fields if some of them are empty
-                    self::showTest($test, $args, true);
+                    self::showTest($test, $ticket, $args, true);
                     return false;
                 }
             }
@@ -1316,7 +1358,10 @@ EOT;
             $html .= wfMsg('mwquizzer-variant-already-seen').' ';
         }
         $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
-        $html .= wfMsg('mwquizzer-try-another', $href);
+        if (!$test['test_secret'] || self::isAdminForTest($test['test_id']))
+        {
+            $html .= wfMsg('mwquizzer-try-another', $href);
+        }
 
         if ($test['test_intro'])
         {

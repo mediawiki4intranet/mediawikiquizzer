@@ -33,6 +33,8 @@ CREATE TABLE /*$wgDBprefix*/mwq_test (
   -- ...and questions with correct answer percent greater than Y ("too simple")
   -- but if qt_autofilter_min_tries <= 0 then autofilter is disabled
   test_autofilter_success_percent tinyint not null,
+  -- is the quiz secret for non-admins, i.e. accessible only by pre-generated URLs with tokens
+  test_secret tinyint(1) not null default '0',
   -- quiz article parse log
   test_log longblob not null,
   PRIMARY KEY (test_id),
@@ -83,7 +85,7 @@ CREATE TABLE /*$wgDBprefix*/mwq_ticket (
   -- ticket key
   tk_key char(32) not null,
   -- start time
-  tk_start_time binary(14) not null,
+  tk_start_time binary(14) default null,
   -- end time
   tk_end_time binary(14) default null,
   -- user ID or NULL for anonymous users

@@ -121,6 +121,7 @@ Then click "Select results" again.',
     'mwquizzer-parse-test_autofilter_min_tries'         => '(?:too[\s_]*simple|autofilter)[\s_]*min[\s_]*tries',
     'mwquizzer-parse-test_autofilter_success_percent'   => '(?:too[\s_]*simple|autofilter)[\s_]*(?:ok|success)[\s_]*percent',
     'mwquizzer-parse-test_user_details'                 => 'Ask[\s_]*user',
+    'mwquizzer-parse-test_secret'                       => 'Is[\s_]*secret|Secret',
 
     /* Regular expressions used to parse form fields */
     'mwquizzer-parse-form'          => 'Form[:\s]*',
@@ -150,6 +151,7 @@ Then click "Select results" again.',
 $messages['ru'] = array(
     'mediawikiquizzer'                  => 'ВикиЭкзамены',
     'mwquizzer-actions'                 => '<p><a href="$2">Пройти тест «$1»</a> &nbsp; | &nbsp; <a href="$3">Версия для печати</a></p>',
+    'mwquizzer-actions-secret'          => '<p><a href="$2">Получить одноразовую ссылку на тестирование</a> &nbsp; | &nbsp; <a href="$3">Версия для печати</a></p>',
     'mwquizzer-show-parselog'           => '[+] Показать лог разбора страницы теста',
     'mwquizzer-hide-parselog'           => '[-] Скрыть лог разбора страницы теста',
     'mwquizzer-complete-stats'          => 'Правильных ответов: $1/$2 ($3 %)',
@@ -186,6 +188,9 @@ $messages['ru'] = array(
     'mwquizzer-print-pagetitle'         => '$1 — версия для печати',
     'mwquizzer-check-pagetitle'         => '$1 — результаты',
     'mwquizzer-review-pagetitle'        => 'Опросы MediaWiki — просмотр результатов',
+
+    'mwquizzer-ticket-pagetitle'        => '$1 — одноразовая ссылка',
+    'mwquizzer-ticket-link'             => 'Одноразовая ссылка на тестирование',
 
     'mwquizzer-question'                => 'Вопрос $1',
     'mwquizzer-freetext'                => 'Ответ:',
@@ -256,6 +261,7 @@ $messages['ru'] = array(
     'mwquizzer-parse-test_autofilter_min_tries'         => 'Мин[\s\.]*попыток\s*слишком\s*простых\s*вопросов|(?:too[\s_]*simple|autofilter)[\s_]*min[\s_]*tries',
     'mwquizzer-parse-test_autofilter_success_percent'   => '%\s*успехов\s*слишком\s*простых\s*вопросов|(?:too[\s_]*simple|autofilter)[\s_]*(?:ok|success)[\s_]*percent',
     'mwquizzer-parse-test_user_details'                 => 'Спросить\s*пользователя|Ask[\s_]*user',
+    'mwquizzer-parse-test_secret'                       => 'Секретный|Is[\s_]*secret|Secret',
 
     /* Регулярные выражения для разбора анкеты */
     'mwquizzer-parse-form'          => '(?:Анкета|Form)[:\s]*',
