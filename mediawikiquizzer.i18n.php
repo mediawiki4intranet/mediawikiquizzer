@@ -21,6 +21,9 @@ $messages['en'] = array(
     'mwquizzer-complete-stats'          => 'Correct answers: $1/$2 ($3 %)',
     'mwquizzer-no-complete-stats'       => '(no statistics)',
 
+    'group-secretquiz'                  => 'Secret quiz access group',
+    'group-secretquiz-member'           => 'has access to secret quizzes',
+
     /* Errors */
     'mwquizzer-no-test-id-title'        => 'Quiz ID is undefined!',
     'mwquizzer-no-test-id-text'         => 'You opened a link without valid quiz ID to run.',
@@ -156,6 +159,9 @@ $messages['ru'] = array(
     'mwquizzer-hide-parselog'           => '[-] Скрыть лог разбора страницы теста',
     'mwquizzer-complete-stats'          => 'Правильных ответов: $1/$2 ($3 %)',
     'mwquizzer-no-complete-stats'       => '(нет статистики)',
+
+    'group-secretquiz'                  => 'Доступ к секретным тестам',
+    'group-secretquiz-member'           => 'имеет доступ к секретным тестам',
 
     /* Ошибки */
     'mwquizzer-no-test-id-title'        => 'Не задан идентификатор теста!',

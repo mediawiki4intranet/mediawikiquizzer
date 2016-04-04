@@ -213,7 +213,7 @@ class MediawikiQuizzerPage extends SpecialPage
     /* SPECIAL PAGE ENTRY POINT */
     function execute($par = null)
     {
-        global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath;
+        global $wgOut, $wgRequest, $wgTitle, $wgLang, $wgServer, $wgScriptPath, $wgUser;
         $args = $_GET+$_POST;
         $wgOut->addExtensionStyle("$wgScriptPath/extensions/".basename(dirname(__FILE__))."/mwquizzer.css");
 
@@ -302,8 +302,8 @@ class MediawikiQuizzerPage extends SpecialPage
 
         /* Load random or specific test variant */
         $test = self::loadTest($id, $variant);
-        if (!$test ||
-            $test['test_secret'] && !self::isAdminForTest($test['test_id']) && !$ticket)
+        if (!$test || $test['test_secret'] && !$ticket &&
+            !self::isAdminForTest($test['test_id']) && !$wgUser->isAllowed('secretquiz'))
         {
             $wgOut->showErrorPage('mwquizzer-test-not-found-title', 'mwquizzer-test-not-found-text');
             return;
@@ -1329,7 +1329,7 @@ EOT;
        display results and completion certificate */
     function checkTest($args)
     {
-        global $wgOut, $wgTitle;
+        global $wgOut, $wgTitle, $wgUser;
 
         $ticket = self::loadTicket($args['ticket_id'], $args['ticket_key']);
         if (!$ticket)
@@ -1358,7 +1358,7 @@ EOT;
             $html .= wfMsg('mwquizzer-variant-already-seen').' ';
         }
         $href = $wgTitle->getFullUrl(array('id' => $test['test_id']));
-        if (!$test['test_secret'] || self::isAdminForTest($test['test_id']))
+        if (!$test['test_secret'] || self::isAdminForTest($test['test_id']) || $wgUser->isAllowed('secretquiz'))
         {
             $html .= wfMsg('mwquizzer-try-another', $href);
         }

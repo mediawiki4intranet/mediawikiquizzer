@@ -66,6 +66,7 @@ $wgHooks['ArticlePurge'][] = 'MediawikiQuizzer::ArticlePurge';
 $wgHooks['ArticleViewHeader'][] = 'MediawikiQuizzer::ArticleViewHeader';
 $wgHooks['DoEditSectionLink'][] = 'MediawikiQuizzer::DoEditSectionLink';
 $wgExtensionFunctions[] = 'MediawikiQuizzer::init';
+$wgGroupPermissions['secretquiz']['secretquiz'] = true;
 
 class MediawikiQuizzer
 {
