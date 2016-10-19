@@ -1566,17 +1566,17 @@ EOT;
                 $stats = '';
             $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $k+1) . $stats);
             $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
+            if ($row)
+            {
+                $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-your-answer'));
+                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), !empty($row['cs_choice_num']) ? $q['choiceByNum'][$row['cs_choice_num']]['ch_text'] : $row['cs_text']);
+            }
             $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-right-answer'));
             $html .= self::xelement('div', array('class' => 'mwq-right-answer'), $correct['ch_text']);
             if ($q['qn_explanation'])
             {
                 $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-explanation'));
                 $html .= self::xelement('div', array('class' => 'mwq-explanation'), $q['qn_explanation']);
-            }
-            if ($row)
-            {
-                $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-your-answer'));
-                $html .= self::xelement('div', array('class' => 'mwq-your-answer'), !empty($row['cs_choice_num']) ? $q['choiceByNum'][$row['cs_choice_num']]['ch_text'] : $row['cs_text']);
             }
         }
         if ($items)
