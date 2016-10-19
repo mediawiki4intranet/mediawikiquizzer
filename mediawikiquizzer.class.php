@@ -614,6 +614,45 @@ class MediawikiQuizzerPage extends SpecialPage
         return $s;
     }
 
+
+    /*
+        We will use it also in TUTOR mode to get question with choices.
+    */
+    static function getQuestionHtml($q, $k, $inputs = false)
+    {
+        $html = '';
+
+        $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
+        $choices = '';
+        if ($q['correct_count'] >= count($q['choices']))
+        {
+            /* This is a free-text question */
+            if ($inputs)
+                $html .= wfMsg('mwquizzer-freetext').' '.self::xelement('input', array('name' => "a[$k]", 'type' => 'text'));
+        }
+        else
+        {
+            foreach($q['choices'] as $i => $c)
+            {
+                if ($inputs)
+                {
+                    /* Question hashes and choice numbers are hidden from user.
+                       They are taken from ticket during check. */
+                    $h = Xml::element('input', array(
+                        'name' => "a[$k]",
+                        'type' => 'radio',
+                        'value' => $i+1,
+                    )) . '&nbsp;' . $c['ch_text'];
+                }
+                else
+                    $h = $c['ch_text'];
+                $choices .= self::xelement('li', array('class' => 'mwq-choice'), $h);
+            }
+            $html .= self::xelement('ol', array('class' => 'mwq-choices'), $choices);
+        }
+        return $html;
+    }
+
     /* Get HTML ordered list with questions, choices,
        optionally radio-buttons for selecting them when $inputs is TRUE,
        and optionally edit question section links when $editsection is TRUE. */
@@ -622,40 +661,14 @@ class MediawikiQuizzerPage extends SpecialPage
         $html = '';
         foreach ($questions as $k => $q)
         {
-            $html .= Xml::element('hr');
-            $html .= self::xelement('a', array('name' => "q$k"), '', false);
-            $h = wfMsg('mwquizzer-question', $k+1);
-            if ($editsection)
+             $html .= Xml::element('hr');
+             $html .= self::xelement('a', array('name' => "q$k"), '', false);
+             $h = wfMsg('mwquizzer-question', $k+1);
+             if ($editsection)
                 $h .= $q['qn_editsection'];
-            $html .= self::xelement('h3', NULL, $h);
-            $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
-            $choices = '';
-            if ($q['correct_count'] >= count($q['choices']))
-            {
-                /* This is a free-text question */
-                if ($inputs)
-                    $html .= wfMsg('mwquizzer-freetext').' '.self::xelement('input', array('name' => "a[$k]", 'type' => 'text'));
-            }
-            else
-            {
-                foreach($q['choices'] as $i => $c)
-                {
-                    if ($inputs)
-                    {
-                        /* Question hashes and choice numbers are hidden from user.
-                           They are taken from ticket during check. */
-                        $h = Xml::element('input', array(
-                            'name' => "a[$k]",
-                            'type' => 'radio',
-                            'value' => $i+1,
-                        )) . '&nbsp;' . $c['ch_text'];
-                    }
-                    else
-                        $h = $c['ch_text'];
-                    $choices .= self::xelement('li', array('class' => 'mwq-choice'), $h);
-                }
-                $html .= self::xelement('ol', array('class' => 'mwq-choices'), $choices);
-            }
+             $html .= self::xelement('h3', NULL, $h);
+
+             $html .= self::getQuestionHtml($q, $k, $inputs);
         }
         return $html;
     }
@@ -1565,7 +1578,8 @@ EOT;
             else
                 $stats = '';
             $html .= self::xelement('h3', NULL, wfMsg('mwquizzer-question', $k+1) . $stats);
-            $html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
+            //$html .= self::xelement('div', array('class' => 'mwq-question'), $q['qn_text']);
+            $html .= self::getQuestionHtml($q, $k);
             if ($row)
             {
                 $html .= self::xelement('h4', NULL, wfMsg('mwquizzer-your-answer'));
