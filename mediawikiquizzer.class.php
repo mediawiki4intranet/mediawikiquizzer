@@ -814,7 +814,7 @@ EOT;
                 {
                     $form .= '<tr><td colspan="2"><input type="checkbox" name="detail_'.$i.'" id="detail_'.$i.
                         '" value="'.htmlspecialchars($field['value']).'"'.(@$args["detail_$i"] ? ' checked="checked"' : '').' /> '.
-                        '<label for="detail_'.$i.'">'.($field['mandatory'] ? $mandatory.' ' : '').
+                        '<label for="detail_'.$i.'">'.($field['mandatory'] && empty($field['multiple']) ? $mandatory.' ' : '').
                         ($field['value'] == '1' ? $field['name'] : $field['value']).
                         '</label></td></tr>';
                 }
@@ -1082,13 +1082,14 @@ EOT;
                     {
                         // Don't check name field (= prompt)
                     }
-                    elseif ($field['mandatory'] && empty($_REQUEST["detail_$i"]))
+                    elseif (empty($_REQUEST["detail_$i"]) && $field['mandatory'] &&
+                        (empty($field['multiple']) || empty($values[trim($field['name'])])))
                     {
                         $empty = true;
                     }
-                    elseif (!$field['mandatory'] || $field['type'] != 'checkbox')
+                    elseif (!$field['mandatory'] || $field['type'] != 'checkbox' || !empty($field['multiple']))
                     {
-                        // Saving mandatory checkboxes is pointless, they're just a confirmation of something and always true
+                        // Saving mandatory non-multiple checkboxes is pointless, they're just a confirmation of something and always true
                         $n = trim($field['name']);
                         $v = !empty($_REQUEST["detail_$i"]) ? $_REQUEST["detail_$i"] : '';
                         if ($field['type'] == 'checkbox' && $v)

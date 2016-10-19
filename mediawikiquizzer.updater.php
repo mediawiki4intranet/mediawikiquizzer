@@ -453,6 +453,7 @@ class MediawikiQuizzerUpdater
                             'type' => self::$form_field_types[$field][0],
                             'mandatory' => self::$form_field_types[$field][1],
                             'value' => $checkbox_name ? $v : '1',
+                            'multiple' => self::$form_field_types[$field][2],
                         );
                         if ($f['type'] != 'checkbox')
                         {
