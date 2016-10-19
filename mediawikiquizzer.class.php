@@ -599,7 +599,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 $args = NULL;
                 if ($k >= $n)
                     $text = '';
-                elseif ($trues && !$trues[$k])
+                elseif ($trues && in_array($k, $trues) && !$trues[$k])
                 {
                     $text = $k+1;
                     $args = array('class' => 'mwq-noitem');
@@ -1201,7 +1201,7 @@ EOT;
                     $lab .= ' | ';
                 if ($row)
                 {
-                    $ch_user = !empty($row['cs_choice_num']) ? "[№$num] ".trim(strip_tags($q['choiceByNum'][$row['cs_choice_num']]['ch_text'])) : $row['cs_text'];
+                    $ch_user = !empty($row['cs_choice_num']) ? "[№" . $row['cs_choice_num'] . "] ".trim(strip_tags($q['choiceByNum'][$row['cs_choice_num']]['ch_text'])) : $row['cs_text'];
                     $ch_user = "--------------------------------------------------------------------------------\n$msg_y: $ch_user\n";
                 }
                 else
@@ -1506,7 +1506,11 @@ EOT;
     /* Generate a completion certificate and get HTML code for the certificate */
     function getCertificateHtml($ticket, $test, $testresult)
     {
-        global $egMWQuizzerCertificateDir, $egMWQuizzerCertificateUri, $wgServer, $wgScriptPath;
+        global $egMWQuizzerCertificateSubDir, $egMWQuizzerCertificateUri, $wgServer, $wgScriptPath;
+        global $wgUploadDirectory;
+
+        $egMWQuizzerCertificateDir = $wgUploadDirectory . $egMWQuizzerCertificateSubDir;
+
         $code = $ticket['tk_key'] . '-' . $ticket['tk_id'];
 
         $hash = '/' . substr($code, 0, 1) . '/' . substr($code, 0, 2) . '/';

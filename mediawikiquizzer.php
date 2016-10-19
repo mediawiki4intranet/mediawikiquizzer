@@ -28,8 +28,8 @@ $egMWQuizzerAdmins = array('WikiSysop');
 // Path to diploma.png successful test completion "certificate" file
 $egMWQuizzerCertificateTemplate = $dir . 'diploma.png';
 
-// Directory where the generated "certificates" are placed
-$egMWQuizzerCertificateDir = $IP . '/images/generated/diplomas';
+// Subdirectory of $wgUploadDirectory where the generated "certificates" are placed
+$egMWQuizzerCertificateSubDir = '/generated/diplomas';
 
 // Path to this directory
 $egMWQuizzerCertificateUri = "images/generated/diplomas";
