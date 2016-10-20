@@ -599,7 +599,7 @@ class MediawikiQuizzerPage extends SpecialPage
                 $args = NULL;
                 if ($k >= $n)
                     $text = '';
-                elseif ($trues && in_array($k, $trues) && !$trues[$k])
+                elseif ($trues && array_key_exists($k, $trues) && !$trues[$k])
                 {
                     $text = $k+1;
                     $args = array('class' => 'mwq-noitem');
