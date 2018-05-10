@@ -209,7 +209,7 @@ class MediawikiQuizzer
     }
 
     // Quiz display hook
-    static function ArticleViewHeader(&$article, &$outputDone, &$pcache)
+    static function ArticleViewHeader($article, &$outputDone, &$pcache)
     {
         global $wgOut;
         if (self::isQuiz($t = $article->getTitle()))
